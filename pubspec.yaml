@@ -1,0 +1,45 @@
+name: bee_talk
+description: "Bee Talk - Modern, minimal, creator-focused chat application with on-device translation."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Firebase Core & Backend
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
+  firebase_database: ^11.1.4
+
+  # Google ML Kit On-Device Translation (Offline, Zero latency, Zero API limits)
+  google_mlkit_translation: ^0.12.0
+  google_mlkit_language_id: ^0.12.0
+
+  # State Management & Architecture
+  provider: ^6.1.2
+
+  # Utilities & Local Persistence
+  http: ^1.2.2
+  shared_preferences: ^2.3.2
+  intl: ^0.19.0
+  uuid: ^4.5.1
+  flutter_animate: ^4.5.0
+  google_fonts: ^6.2.1
+  flutter_svg: ^2.0.10+1
+  share_plus: ^10.0.2
+  fluttertoast: ^8.2.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icons/
+    - assets/images/

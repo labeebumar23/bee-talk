@@ -1,0 +1,1474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bee Talk - Speak Free. Understand Instantly.</title>
+  
+  <!-- Google Fonts: Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Firebase App & Services (Compat SDK) -->
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+
+  <style>
+    /* ==========================================
+       🎨 BUMBLEBEE DESIGN SYSTEM & COLOR PALETTE
+       ========================================== */
+    :root {
+      --bee-yellow: #FFC107;
+      --bee-yellow-accent: #FFD54F;
+      --bee-yellow-dark: #FFA000;
+      
+      --charcoal: #181810;
+      --charcoal-surface: #22221A;
+      --charcoal-card: #2C2C24;
+      --charcoal-border: #3D3D32;
+      --charcoal-muted: #8E8E80;
+      
+      --pure-white: #FFFFFF;
+      --white-off: #F8F9FA;
+      --online-green: #10B981;
+      --danger-red: #EF4444;
+      
+      --glow-yellow: 0 0 25px rgba(255, 193, 7, 0.4);
+      --font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background-color: #0d0d08;
+      background-image: 
+        radial-gradient(circle at 15% 20%, rgba(255, 193, 7, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 85% 80%, rgba(255, 160, 0, 0.06) 0%, transparent 40%);
+      color: var(--pure-white);
+      font-family: var(--font-family);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 16px;
+      overflow-x: hidden;
+    }
+
+    /* Device Container */
+    .app-container {
+      width: 100%;
+      max-width: 440px;
+      height: 92vh;
+      max-height: 880px;
+      min-height: 600px;
+      background: var(--charcoal);
+      border-radius: 36px;
+      border: 1px solid var(--charcoal-border);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.05);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    /* Status Bar Mock */
+    .status-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 24px 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--pure-white);
+      background: var(--charcoal);
+      z-index: 10;
+    }
+
+    .status-icons {
+      display: flex;
+      gap: 6px;
+      font-size: 11px;
+    }
+
+    /* Screen Views */
+    .screen {
+      display: none;
+      flex: 1;
+      flex-direction: column;
+      height: 100%;
+      overflow-y: auto;
+      position: relative;
+    }
+
+    .screen.active {
+      display: flex;
+      animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.98); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    /* ==========================================
+       🚀 SCREEN 1: ONBOARDING STYLING
+       ========================================== */
+    .onboarding-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 24px 28px;
+      text-align: center;
+    }
+
+    .logo-container {
+      width: 84px;
+      height: 84px;
+      background: var(--bee-yellow);
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 44px;
+      box-shadow: var(--glow-yellow);
+      margin-bottom: 20px;
+    }
+
+    .app-title {
+      font-size: 34px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      color: var(--pure-white);
+      margin-bottom: 6px;
+    }
+
+    .app-tagline {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--charcoal-muted);
+      margin-bottom: 28px;
+    }
+
+    .avatar-picker-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 24px;
+      cursor: pointer;
+    }
+
+    .avatar-bubble {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--bee-yellow-accent), var(--bee-yellow-dark));
+      border: 3px solid var(--charcoal);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 38px;
+      position: relative;
+    }
+
+    .avatar-refresh-badge {
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      width: 24px;
+      height: 24px;
+      background: var(--bee-yellow);
+      border-radius: 50%;
+      border: 2px solid var(--charcoal);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 11px;
+      color: var(--charcoal);
+      font-weight: bold;
+    }
+
+    .avatar-hint {
+      font-size: 12px;
+      color: var(--charcoal-muted);
+      margin-top: 8px;
+    }
+
+    .setup-card {
+      width: 100%;
+      background: var(--charcoal-surface);
+      border: 1px solid var(--charcoal-border);
+      border-radius: 24px;
+      padding: 20px;
+      text-align: left;
+      margin-bottom: 24px;
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+    }
+
+    .form-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .form-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--pure-white);
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input-icon {
+      position: absolute;
+      left: 14px;
+      color: var(--bee-yellow);
+      font-size: 18px;
+    }
+
+    .text-input {
+      width: 100%;
+      background: var(--charcoal);
+      border: 1px solid var(--charcoal-border);
+      border-radius: 14px;
+      padding: 14px 16px 14px 44px;
+      color: var(--pure-white);
+      font-family: var(--font-family);
+      font-size: 15px;
+      outline: none;
+    }
+
+    .text-input:focus {
+      border-color: var(--bee-yellow);
+    }
+
+    .dropdown-select {
+      width: 100%;
+      background: var(--charcoal);
+      border: 1px solid var(--charcoal-border);
+      border-radius: 14px;
+      padding: 14px 16px;
+      color: var(--pure-white);
+      font-family: var(--font-family);
+      font-size: 15px;
+      font-weight: 600;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .btn-start {
+      width: 100%;
+      background: var(--bee-yellow);
+      color: var(--charcoal);
+      border: none;
+      border-radius: 16px;
+      padding: 18px;
+      font-size: 17px;
+      font-weight: 800;
+      font-family: var(--font-family);
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      transition: background-color 0.2s;
+    }
+
+    .btn-start:hover {
+      background: var(--bee-yellow-accent);
+    }
+
+    .btn-start:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    /* ==========================================
+       📥 SCREEN 2: INBOX & MULTIPLE CHATS VIEW
+       ========================================== */
+    .inbox-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      background: var(--charcoal);
+      border-bottom: 1px solid var(--charcoal-border);
+    }
+
+    .inbox-user-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .inbox-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--bee-yellow-accent), var(--bee-yellow-dark));
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 20px;
+    }
+
+    .inbox-name {
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--pure-white);
+    }
+
+    .inbox-code-pill {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--bee-yellow);
+      letter-spacing: 0.5px;
+    }
+
+    .search-box-wrap {
+      padding: 12px 18px 8px;
+    }
+
+    .search-box {
+      width: 100%;
+      background: var(--charcoal-surface);
+      border: 1px solid var(--charcoal-border);
+      border-radius: 14px;
+      padding: 10px 14px 10px 38px;
+      color: var(--pure-white);
+      font-family: var(--font-family);
+      font-size: 14px;
+      outline: none;
+    }
+
+    .search-icon-pos {
+      position: absolute;
+      left: 30px;
+      top: 22px;
+      font-size: 14px;
+      color: var(--charcoal-muted);
+      pointer-events: none;
+    }
+
+    .privacy-badge-banner {
+      margin: 4px 18px 8px;
+      padding: 8px 12px;
+      background: rgba(255, 193, 7, 0.08);
+      border: 1px solid rgba(255, 193, 7, 0.2);
+      border-radius: 12px;
+      font-size: 11px;
+      color: var(--bee-yellow-accent);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .chat-list-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px 18px 80px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .chat-item-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border-radius: 16px;
+      background: transparent;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .chat-item-card:hover {
+      background: var(--charcoal-surface);
+    }
+
+    .chat-item-avatar-wrap {
+      position: relative;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--charcoal-card);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+
+    .chat-item-online {
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--online-green);
+      border: 2px solid var(--charcoal);
+    }
+
+    .chat-item-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .chat-item-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 3px;
+    }
+
+    .chat-item-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--pure-white);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .chat-item-lang {
+      font-size: 11px;
+      color: var(--bee-yellow);
+      font-weight: 600;
+    }
+
+    .chat-item-snippet {
+      font-size: 13px;
+      color: var(--charcoal-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .btn-fab-new {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      background: var(--bee-yellow);
+      color: var(--charcoal);
+      border: none;
+      border-radius: 30px;
+      padding: 14px 22px;
+      font-size: 15px;
+      font-weight: 800;
+      font-family: var(--font-family);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 6px 20px rgba(255, 193, 7, 0.4);
+      transition: transform 0.15s;
+      z-index: 20;
+    }
+
+    .btn-fab-new:hover {
+      transform: scale(1.04);
+      background: var(--bee-yellow-accent);
+    }
+
+    /* ==========================================
+       💬 SCREEN 3: 1-ON-1 CHAT ROOM
+       ========================================== */
+    .chat-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--charcoal);
+      border-bottom: 1px solid var(--charcoal-border);
+      z-index: 10;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-back {
+      background: none;
+      border: none;
+      color: var(--pure-white);
+      font-size: 22px;
+      cursor: pointer;
+      padding: 2px 6px;
+    }
+
+    .messages-container {
+      flex: 1;
+      padding: 14px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .message-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      width: 100%;
+    }
+
+    .message-row.me {
+      justify-content: flex-end;
+    }
+
+    .message-row.other {
+      justify-content: flex-start;
+    }
+
+    .message-avatar-small {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--charcoal-card);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .btn-peek {
+      background: var(--charcoal-card);
+      border: 1px solid var(--charcoal-border);
+      color: var(--pure-white);
+      border-radius: 50%;
+      width: 26px;
+      height: 26px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 12px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .bubble {
+      max-width: 74%;
+      padding: 10px 14px;
+      border-radius: 18px;
+      font-size: 14.5px;
+      line-height: 1.35;
+      word-break: break-word;
+    }
+
+    .message-row.me .bubble {
+      background: var(--bee-yellow);
+      color: var(--charcoal);
+      border-bottom-right-radius: 4px;
+      border: 1px solid var(--bee-yellow-dark);
+      font-weight: 500;
+    }
+
+    .message-row.other .bubble {
+      background: var(--charcoal-card);
+      color: var(--pure-white);
+      border-bottom-left-radius: 4px;
+      border: 1px solid var(--charcoal-border);
+      font-weight: 400;
+    }
+
+    .bubble-lang-tag {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--bee-yellow-accent);
+      margin-bottom: 2px;
+    }
+
+    .bubble-footer {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 4px;
+      margin-top: 3px;
+      font-size: 10px;
+    }
+
+    .message-row.me .bubble-footer {
+      color: rgba(24, 24, 16, 0.7);
+    }
+
+    .message-row.other .bubble-footer {
+      color: var(--charcoal-muted);
+    }
+
+    .input-bar {
+      padding: 10px 14px 14px;
+      background: var(--charcoal-surface);
+      border-top: 1px solid var(--charcoal-border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .chat-text-input {
+      flex: 1;
+      background: var(--charcoal);
+      border: 1px solid var(--charcoal-border);
+      border-radius: 24px;
+      padding: 12px 18px;
+      color: var(--pure-white);
+      font-family: var(--font-family);
+      font-size: 15px;
+      outline: none;
+    }
+
+    .chat-text-input:focus {
+      border-color: var(--bee-yellow);
+    }
+
+    .btn-send {
+      width: 46px;
+      height: 46px;
+      border-radius: 50%;
+      background: var(--bee-yellow);
+      color: var(--charcoal);
+      border: none;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 20px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(255, 193, 7, 0.35);
+    }
+
+    /* Modals */
+    .modal-overlay {
+      display: none;
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+      animation: fadeIn 0.2s ease-out;
+    }
+
+    .modal-card {
+      width: 100%;
+      background: var(--charcoal-surface);
+      border: 1px solid var(--charcoal-border);
+      border-radius: 24px;
+      padding: 22px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-modal-close {
+      background: none;
+      border: none;
+      color: var(--charcoal-muted);
+      font-size: 20px;
+      cursor: pointer;
+    }
+
+    .modal-box {
+      background: var(--charcoal);
+      border: 1px solid var(--charcoal-border);
+      border-radius: 14px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+    }
+
+    .modal-box.highlight {
+      background: rgba(255, 193, 7, 0.12);
+      border-color: rgba(255, 193, 7, 0.4);
+    }
+
+    .modal-box-label {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      color: var(--charcoal-muted);
+      margin-bottom: 4px;
+    }
+
+    .modal-box.highlight .modal-box-label {
+      color: var(--bee-yellow);
+    }
+
+    .modal-box-text {
+      font-size: 15px;
+      color: var(--pure-white);
+    }
+
+    .spinner {
+      width: 22px;
+      height: 22px;
+      border: 3px solid rgba(24, 24, 16, 0.3);
+      border-radius: 50%;
+      border-top-color: var(--charcoal);
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <span>9:41</span>
+      <div class="status-icons">
+        <span>5G</span>
+        <span>⚡ 100%</span>
+      </div>
+    </div>
+
+    <!-- ==========================================
+         🚀 SCREEN 1: ONBOARDING VIEW
+         ========================================== -->
+    <div id="screenOnboarding" class="screen active">
+      <div class="onboarding-content">
+        <div class="logo-container"><span>🐝</span></div>
+        <h1 class="app-title">Bee Talk</h1>
+        <p class="app-tagline">Speak Free. Understand Instantly.</p>
+
+        <div class="avatar-picker-wrap" id="avatarPicker" title="Tap to change avatar mood">
+          <div class="avatar-bubble">
+            <span id="currentAvatarEmoji">🐝</span>
+            <div class="avatar-refresh-badge">↺</div>
+          </div>
+          <span class="avatar-hint">Tap avatar to change mood</span>
+        </div>
+
+        <div class="setup-card">
+          <div class="form-group">
+            <label class="form-label" for="displayNameInput">Display Name</label>
+            <div class="input-wrapper">
+              <span class="input-icon">👤</span>
+              <input type="text" id="displayNameInput" class="text-input" placeholder="Enter your name..." value="Hamza">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="languageSelect">Your Native Language</label>
+            <select id="languageSelect" class="dropdown-select">
+              <option value="Urdu (اردو) 🇵🇰" selected>Urdu (اردو) 🇵🇰</option>
+              <option value="Turkish (Türkçe) 🇹🇷">Turkish (Türkçe) 🇹🇷</option>
+              <option value="English (English) 🇺🇸">English (English) 🇺🇸</option>
+              <option value="Spanish (Español) 🇪🇸">Spanish (Español) 🇪🇸</option>
+              <option value="Arabic (العربية) 🇸🇦">Arabic (العربية) 🇸🇦</option>
+              <option value="Japanese (日本語) 🇯🇵">Japanese (日本語) 🇯🇵</option>
+              <option value="German (Deutsch) 🇩🇪">German (Deutsch) 🇩🇪</option>
+              <option value="French (Français) 🇫🇷">French (Français) 🇫🇷</option>
+            </select>
+          </div>
+        </div>
+
+        <button id="btnStartChat" class="btn-start">
+          <span id="btnText">Start Chat</span>
+          <span id="btnIcon">🐝</span>
+          <div id="btnSpinner" class="spinner" style="display:none;"></div>
+        </button>
+
+        <div style="font-size:12px; color:var(--charcoal-muted); margin-top:16px;">
+          <span>🔒 Invite-to-Chat • 30-Day Monthly Privacy Clear</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==========================================
+         📥 SCREEN 2: INBOX VIEW (HOME)
+         ========================================== -->
+    <div id="screenInbox" class="screen">
+      <div class="inbox-header">
+        <div class="inbox-user-info">
+          <div class="inbox-avatar" id="inboxUserAvatar">🐝</div>
+          <div>
+            <div class="inbox-name" id="inboxUserName">Hamza</div>
+            <div class="inbox-code-pill" id="inboxUserCode">Code: BT-XXXX</div>
+          </div>
+        </div>
+        <button id="btnShareMyCode" class="btn-peek" style="width:34px; height:34px; font-size:16px;" title="Copy Invite Code">📋</button>
+      </div>
+
+      <div class="search-box-wrap" style="position:relative;">
+        <span class="search-icon-pos">🔍</span>
+        <input type="text" id="inboxSearchInput" class="search-box" placeholder="Search conversations...">
+      </div>
+
+      <div class="privacy-badge-banner">
+        <span>🛡️</span>
+        <span><b>Monthly Auto-Clear:</b> Messages auto-reset every 30 days while profiles remain saved.</span>
+      </div>
+
+      <div class="chat-list-container" id="inboxChatList">
+        <!-- Live inbox cards rendered here -->
+      </div>
+
+      <!-- Floating New Chat Button -->
+      <button id="btnFabNewChat" class="btn-fab-new">
+        <span>＋ New Chat</span>
+      </button>
+    </div>
+
+    <!-- ==========================================
+         💬 SCREEN 3: 1-ON-1 CHAT ROOM
+         ========================================== -->
+    <div id="screenChat" class="screen">
+      <div class="chat-header">
+        <div class="header-left">
+          <button id="btnBackToInbox" class="btn-back" title="Back to Inbox">‹</button>
+          <div class="inbox-avatar" id="chatRoomOtherAvatar" style="width:38px; height:38px; font-size:20px;">🌻</div>
+          <div>
+            <div class="inbox-name" id="chatRoomOtherName" style="font-size:16px;">Zeynep</div>
+            <div class="inbox-code-pill" id="chatRoomOtherLang" style="font-size:11px;">Turkish 🇹🇷</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="privacy-badge-banner" style="margin:6px 14px 0;">
+        <span>🔒</span>
+        <span>30-Day Auto-Clear Active • Dynamic Instant Translation</span>
+      </div>
+
+      <div id="messagesContainer" class="messages-container"></div>
+
+      <div class="input-bar">
+        <input type="text" id="chatInput" class="chat-text-input" placeholder="Type your message...">
+        <button id="btnSendMessage" class="btn-send">➤</button>
+      </div>
+    </div>
+
+    <!-- ==========================================
+         🐝 MODAL: NEW CHAT / INVITE CODE
+         ========================================== -->
+    <div id="modalNewChat" class="modal-overlay">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-title">
+            <span>🐝</span>
+            <span>Connect & Chat</span>
+          </div>
+          <button class="btn-modal-close" id="btnCloseNewChatModal">✕</button>
+        </div>
+
+        <p style="font-size:13px; color:var(--charcoal-muted); margin-bottom:14px;">
+          Enter a friend's Invite Code to start a private 1-on-1 cross-language chat:
+        </p>
+
+        <div style="margin-bottom:16px;">
+          <input type="text" id="inputFriendCode" class="text-input" placeholder="Enter Code (e.g. BT-492X)" style="padding-left:16px; font-weight:800; letter-spacing:2px; text-transform:uppercase;">
+        </div>
+
+        <button id="btnConnectFriend" class="btn-start" style="padding:14px; font-size:16px;">
+          <span>Connect & Chat</span>
+        </button>
+
+        <div style="margin:18px 0; border-top:1px solid var(--charcoal-border);"></div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div style="font-size:11px; color:var(--charcoal-muted);">Your Invite Code</div>
+            <div id="modalMyCodeDisplay" style="font-size:18px; font-weight:900; color:var(--bee-yellow); letter-spacing:1.5px;">BT-XXXX</div>
+          </div>
+          <button id="btnCopyMyCode" class="btn-peek" style="width:auto; height:auto; padding:8px 14px; border-radius:12px; font-weight:700;">
+            📋 Copy
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==========================================
+         👁️ MODAL: TRANSLATION INSIGHT
+         ========================================== -->
+    <div id="modalTranslation" class="modal-overlay">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-title">
+            <span>👁️</span>
+            <span>Translation Insight</span>
+          </div>
+          <button class="btn-modal-close" id="btnCloseTranslationModal">✕</button>
+        </div>
+
+        <div class="modal-box">
+          <div class="modal-box-label" id="modalOriginalLangLabel">ORIGINAL</div>
+          <div class="modal-box-text" id="modalOriginalText"></div>
+        </div>
+
+        <div class="modal-box highlight">
+          <div class="modal-box-label">TRANSLATED TO YOUR LANGUAGE</div>
+          <div class="modal-box-text" id="modalTranslatedText"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ==========================================
+       ⚙️ CONTROLLER, TRANSLATION & FIREBASE SYNC
+       ========================================== -->
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDjubRpVMJjlj7jFqm2oVovgO7h7upnR6s",
+      authDomain: "bee-talk-bd4a6.firebaseapp.com",
+      databaseURL: "https://bee-talk-bd4a6-default-rtdb.firebaseio.com",
+      projectId: "bee-talk-bd4a6",
+      storageBucket: "bee-talk-bd4a6.firebasestorage.app",
+      messagingSenderId: "994926166121",
+      appId: "1:994926166121:web:7e5a347ab1a1924b1962f8",
+      measurementId: "G-Z6WKLFNY0G"
+    };
+
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.database();
+
+    const avatars = ['🐝', '🍯', '👑', '⚡', '🌻', '🚀', '✨'];
+    let avatarIndex = 0;
+    let currentUser = null;
+    let activeChatRoom = null;
+
+    // 30 Days Retention
+    const MONTHLY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
+    // Translation Cache
+    const translationCache = {};
+
+    function parseLangCode(langStr) {
+      if (!langStr) return 'en';
+      const clean = langStr.toLowerCase();
+      if (clean.includes('urdu') || clean.includes('ur')) return 'ur';
+      if (clean.includes('turkish') || clean.includes('türkçe') || clean.includes('tr')) return 'tr';
+      if (clean.includes('english') || clean.includes('en')) return 'en';
+      if (clean.includes('spanish') || clean.includes('español') || clean.includes('es')) return 'es';
+      if (clean.includes('arabic') || clean.includes('العربية') || clean.includes('ar')) return 'ar';
+      if (clean.includes('japanese') || clean.includes('日本語') || clean.includes('ja')) return 'ja';
+      if (clean.includes('german') || clean.includes('deutsch') || clean.includes('de')) return 'de';
+      if (clean.includes('french') || clean.includes('français') || clean.includes('fr')) return 'fr';
+      return langStr.trim().split(' ')[0].toLowerCase();
+    }
+
+    // Dynamic Real-time Translation Function (No Dummy Strings!)
+    async function dynamicTranslate(text, sourceLangStr, targetLangStr) {
+      const trimmed = (text || '').trim();
+      if (!trimmed) return text;
+
+      const src = parseLangCode(sourceLangStr);
+      const tgt = parseLangCode(targetLangStr);
+
+      if (src === tgt) return trimmed;
+
+      const cacheKey = `${src}_${tgt}_${trimmed}`;
+      if (translationCache[cacheKey]) {
+        return translationCache[cacheKey];
+      }
+
+      try {
+        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${src}&tl=${tgt}&dt=t&q=${encodeURIComponent(trimmed)}`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const json = await res.json();
+          if (json && json[0] && Array.isArray(json[0])) {
+            const translated = json[0].map(item => item[0]).join('').trim();
+            if (translated) {
+              translationCache[cacheKey] = translated;
+              return translated;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Dynamic translate notice:', err);
+      }
+
+      return trimmed;
+    }
+
+    // Screens
+    const screenOnboarding = document.getElementById('screenOnboarding');
+    const screenInbox = document.getElementById('screenInbox');
+    const screenChat = document.getElementById('screenChat');
+
+    // Onboarding Elements
+    const avatarPicker = document.getElementById('avatarPicker');
+    const currentAvatarEmoji = document.getElementById('currentAvatarEmoji');
+    const displayNameInput = document.getElementById('displayNameInput');
+    const languageSelect = document.getElementById('languageSelect');
+    const btnStartChat = document.getElementById('btnStartChat');
+    const btnText = document.getElementById('btnText');
+    const btnIcon = document.getElementById('btnIcon');
+    const btnSpinner = document.getElementById('btnSpinner');
+
+    // Inbox Elements
+    const inboxUserAvatar = document.getElementById('inboxUserAvatar');
+    const inboxUserName = document.getElementById('inboxUserName');
+    const inboxUserCode = document.getElementById('inboxUserCode');
+    const inboxChatList = document.getElementById('inboxChatList');
+    const inboxSearchInput = document.getElementById('inboxSearchInput');
+    const btnFabNewChat = document.getElementById('btnFabNewChat');
+    const btnShareMyCode = document.getElementById('btnShareMyCode');
+
+    // Chat Room Elements
+    const btnBackToInbox = document.getElementById('btnBackToInbox');
+    const chatRoomOtherAvatar = document.getElementById('chatRoomOtherAvatar');
+    const chatRoomOtherName = document.getElementById('chatRoomOtherName');
+    const chatRoomOtherLang = document.getElementById('chatRoomOtherLang');
+    const messagesContainer = document.getElementById('messagesContainer');
+    const chatInput = document.getElementById('chatInput');
+    const btnSendMessage = document.getElementById('btnSendMessage');
+
+    // Modals
+    const modalNewChat = document.getElementById('modalNewChat');
+    const btnCloseNewChatModal = document.getElementById('btnCloseNewChatModal');
+    const inputFriendCode = document.getElementById('inputFriendCode');
+    const btnConnectFriend = document.getElementById('btnConnectFriend');
+    const modalMyCodeDisplay = document.getElementById('modalMyCodeDisplay');
+    const btnCopyMyCode = document.getElementById('btnCopyMyCode');
+
+    const modalTranslation = document.getElementById('modalTranslation');
+    const btnCloseTranslationModal = document.getElementById('btnCloseTranslationModal');
+    const modalOriginalLangLabel = document.getElementById('modalOriginalLangLabel');
+    const modalOriginalText = document.getElementById('modalOriginalText');
+    const modalTranslatedText = document.getElementById('modalTranslatedText');
+
+    function generateInviteCode() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let res = 'BT-';
+      for (let i = 0; i < 4; i++) res += chars.charAt(Math.floor(Math.random() * chars.length));
+      return res;
+    }
+
+    avatarPicker.addEventListener('click', () => {
+      avatarIndex = (avatarIndex + 1) % avatars.length;
+      currentAvatarEmoji.textContent = avatars[avatarIndex];
+    });
+
+    // Onboarding Submit
+    btnStartChat.addEventListener('click', async () => {
+      const name = displayNameInput.value.trim();
+      if (!name) { alert('Please enter your name'); return; }
+
+      const selectedLang = languageSelect.value;
+      const avatar = avatars[avatarIndex];
+
+      btnText.style.display = 'none';
+      btnIcon.style.display = 'none';
+      btnSpinner.style.display = 'block';
+      btnStartChat.disabled = true;
+
+      try {
+        const cred = await auth.signInAnonymously();
+        const uid = cred.user.uid;
+        const inviteCode = generateInviteCode();
+
+        currentUser = {
+          uid: uid,
+          displayName: name,
+          language: selectedLang,
+          avatar: avatar,
+          inviteCode: inviteCode
+        };
+
+        // Save User
+        await db.ref('users/' + uid).set({
+          uid: uid,
+          displayName: name,
+          nativeLanguage: selectedLang,
+          avatar: avatar,
+          inviteCode: inviteCode,
+          isOnline: true,
+          lastSeen: firebase.database.ServerValue.TIMESTAMP
+        });
+
+        // Register Invite
+        await db.ref('invites/' + inviteCode).set({
+          code: inviteCode,
+          creatorUid: uid,
+          creatorName: name,
+          creatorAvatar: avatar,
+          creatorLang: selectedLang,
+          createdAt: firebase.database.ServerValue.TIMESTAMP
+        });
+
+        // Setup Presence
+        const presRef = db.ref('presence/' + uid);
+        db.ref('.info/connected').on('value', (snap) => {
+          if (snap.val() === true) {
+            presRef.onDisconnect().set({ isOnline: false, lastSeen: firebase.database.ServerValue.TIMESTAMP });
+            presRef.set({ isOnline: true, lastSeen: firebase.database.ServerValue.TIMESTAMP });
+          }
+        });
+
+        // Switch to Inbox Screen
+        inboxUserAvatar.textContent = avatar;
+        inboxUserName.textContent = name;
+        inboxUserCode.textContent = `Code: ${inviteCode}`;
+        modalMyCodeDisplay.textContent = inviteCode;
+
+        screenOnboarding.classList.remove('active');
+        screenInbox.classList.add('active');
+
+        listenToInboxChats();
+
+      } catch (err) {
+        alert('Firebase Error: ' + err.message);
+      } finally {
+        btnText.style.display = 'inline';
+        btnIcon.style.display = 'inline';
+        btnSpinner.style.display = 'none';
+        btnStartChat.disabled = false;
+      }
+    });
+
+    // Listen to Inbox Chats
+    let userChats = [];
+    function listenToInboxChats() {
+      db.ref('user_chats/' + currentUser.uid).on('value', async (snap) => {
+        inboxChatList.innerHTML = '';
+        if (!snap.exists() || !snap.val()) {
+          inboxChatList.innerHTML = `
+            <div style="text-align:center; padding:40px 20px; color:var(--charcoal-muted);">
+              <div style="font-size:44px; margin-bottom:8px;">🐝</div>
+              <div style="font-size:16px; font-weight:800; color:var(--pure-white);">No Chats Yet</div>
+              <div style="font-size:13px; margin-top:4px;">Share your code <b>(${currentUser.inviteCode})</b> or tap '+ New Chat' to connect with someone!</div>
+            </div>
+          `;
+          return;
+        }
+
+        const data = snap.val();
+        const roomIds = Object.keys(data);
+        userChats = [];
+
+        for (const roomId of roomIds) {
+          const roomSnap = await db.ref('chat_rooms/' + roomId).once('value');
+          if (roomSnap.exists()) {
+            const roomData = roomSnap.val();
+            const parts = roomData.participants || {};
+            let other = { uid: '', displayName: 'Bee Friend', avatar: '🐝', nativeLanguage: 'English' };
+
+            Object.keys(parts).forEach(k => {
+              if (k !== currentUser.uid) other = parts[k];
+            });
+
+            userChats.push({
+              roomId: roomId,
+              other: other,
+              lastMessageText: roomData.lastMessageText || 'Chat connected 🐝',
+              lastMessageTimestamp: roomData.lastMessageTimestamp || 0
+            });
+          }
+        }
+
+        userChats.sort((a, b) => b.lastMessageTimestamp - a.lastMessageTimestamp);
+        renderInboxList();
+      });
+    }
+
+    function renderInboxList() {
+      inboxChatList.innerHTML = '';
+      const query = (inboxSearchInput.value || '').toLowerCase();
+
+      const filtered = userChats.filter(c => 
+        c.other.displayName.toLowerCase().includes(query) ||
+        c.lastMessageText.toLowerCase().includes(query)
+      );
+
+      if (filtered.length === 0 && userChats.length > 0) {
+        inboxChatList.innerHTML = `<div style="text-align:center; padding:30px; color:var(--charcoal-muted);">No matching conversations</div>`;
+        return;
+      }
+
+      filtered.forEach(item => {
+        const el = document.createElement('div');
+        el.className = 'chat-item-card';
+        el.innerHTML = `
+          <div class="chat-item-avatar-wrap">
+            <span>${item.other.avatar}</span>
+            <div class="chat-item-online"></div>
+          </div>
+          <div class="chat-item-content">
+            <div class="chat-item-top">
+              <span class="chat-item-name">${item.other.displayName}</span>
+              <span class="chat-item-lang">${item.other.nativeLanguage.split(' ')[0]}</span>
+            </div>
+            <div class="chat-item-snippet">${item.lastMessageText}</div>
+          </div>
+        `;
+        el.onclick = () => openChatRoom(item);
+        inboxChatList.appendChild(el);
+      });
+    }
+
+    inboxSearchInput.addEventListener('input', renderInboxList);
+
+    // Open Chat Room
+    let messagesSub = null;
+    function openChatRoom(chatItem) {
+      activeChatRoom = chatItem;
+      chatRoomOtherAvatar.textContent = chatItem.other.avatar;
+      chatRoomOtherName.textContent = chatItem.other.displayName;
+      chatRoomOtherLang.textContent = chatItem.other.nativeLanguage;
+
+      screenInbox.classList.remove('active');
+      screenChat.classList.add('active');
+
+      messagesContainer.innerHTML = '';
+      const cutoff = Date.now() - MONTHLY_RETENTION_MS;
+      const ref = db.ref('messages/' + chatItem.roomId);
+
+      if (messagesSub) ref.off();
+
+      messagesSub = ref.orderByChild('timestamp').on('value', async (snap) => {
+        messagesContainer.innerHTML = '';
+        if (!snap.exists() || !snap.val()) return;
+
+        const msgs = snap.val();
+        const keys = Object.keys(msgs);
+
+        for (const k of keys) {
+          const m = msgs[k];
+          if (m.timestamp >= cutoff) {
+            await renderChatMessage(k, m);
+          } else {
+            // Prune messages older than 30 days (Monthly Privacy Auto-Clear)
+            db.ref('messages/' + chatItem.roomId + '/' + k).remove();
+          }
+        }
+
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      });
+    }
+
+    async function renderChatMessage(msgId, m) {
+      const isMe = m.senderId === currentUser.uid;
+      const row = document.createElement('div');
+      row.className = 'message-row ' + (isMe ? 'me' : 'other');
+
+      let timeStr = 'Now';
+      if (m.timestamp) {
+        const d = new Date(m.timestamp);
+        let h = d.getHours();
+        const min = String(d.getMinutes()).padStart(2, '0');
+        const p = h >= 12 ? 'PM' : 'AM';
+        h = h > 12 ? h - 12 : (h === 0 ? 12 : h);
+        timeStr = `${h}:${min} ${p}`;
+      }
+
+      // Dynamic Real-time Translation without placeholders!
+      let displayText = m.text;
+      if (!isMe) {
+        displayText = await dynamicTranslate(m.text, m.senderLang || activeChatRoom.other.nativeLanguage, currentUser.language);
+      }
+
+      if (!isMe) {
+        const av = document.createElement('div');
+        av.className = 'message-avatar-small';
+        av.textContent = m.senderAvatar || '🐝';
+        row.appendChild(av);
+
+        const peek = document.createElement('button');
+        peek.className = 'btn-peek';
+        peek.textContent = '👁️';
+        peek.onclick = () => {
+          modalOriginalLangLabel.textContent = `ORIGINAL (${(m.senderLang || activeChatRoom.other.nativeLanguage).split(' ')[0].toUpperCase()})`;
+          modalOriginalText.textContent = m.text;
+          modalTranslatedText.textContent = displayText;
+          modalTranslation.classList.add('active');
+        };
+        row.appendChild(peek);
+      }
+
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      if (!isMe) {
+        const tag = document.createElement('div');
+        tag.className = 'bubble-lang-tag';
+        tag.textContent = `Translated from ${(m.senderLang || activeChatRoom.other.nativeLanguage).split(' ')[0]}`;
+        bubble.appendChild(tag);
+      }
+
+      const body = document.createElement('div');
+      body.textContent = displayText;
+      bubble.appendChild(body);
+
+      const footer = document.createElement('div');
+      footer.className = 'bubble-footer';
+      footer.innerHTML = `<span>${timeStr}</span>` + (isMe ? `<span>✓✓</span>` : '');
+      bubble.appendChild(footer);
+
+      row.appendChild(bubble);
+      messagesContainer.appendChild(row);
+    }
+
+    // Send Message
+    async function sendMessage() {
+      const text = chatInput.value.trim();
+      if (!text || !activeChatRoom) return;
+
+      chatInput.value = '';
+      const now = Date.now();
+
+      try {
+        await db.ref('messages/' + activeChatRoom.roomId).push({
+          senderId: currentUser.uid,
+          senderName: currentUser.displayName,
+          senderAvatar: currentUser.avatar,
+          senderLang: currentUser.language,
+          text: text,
+          timestamp: now
+        });
+
+        await db.ref('chat_rooms/' + activeChatRoom.roomId).update({
+          lastMessageText: text,
+          lastMessageSenderId: currentUser.uid,
+          lastMessageTimestamp: now
+        });
+      } catch (e) {
+        console.error('Send error:', e);
+      }
+    }
+
+    btnSendMessage.addEventListener('click', sendMessage);
+    chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
+
+    btnBackToInbox.addEventListener('click', () => {
+      screenChat.classList.remove('active');
+      screenInbox.classList.add('active');
+    });
+
+    // New Chat / Invite Code Flow
+    btnFabNewChat.addEventListener('click', () => {
+      modalNewChat.classList.add('active');
+      inputFriendCode.value = '';
+    });
+
+    btnCloseNewChatModal.addEventListener('click', () => {
+      modalNewChat.classList.remove('active');
+    });
+
+    btnConnectFriend.addEventListener('click', async () => {
+      const code = inputFriendCode.value.trim().toUpperCase();
+      if (!code) return;
+
+      try {
+        const snap = await db.ref('invites/' + code).once('value');
+        if (!snap.exists()) {
+          alert('Invalid invite code. Please verify and try again.');
+          return;
+        }
+
+        const data = snap.val();
+        if (data.creatorUid === currentUser.uid) {
+          alert('You cannot use your own invite code.');
+          return;
+        }
+
+        const sorted = [currentUser.uid, data.creatorUid].sort();
+        const roomId = `room_${sorted[0]}_${sorted[1]}`;
+
+        const roomPayload = {
+          roomId: roomId,
+          participantUids: sorted,
+          participants: {
+            [currentUser.uid]: {
+              uid: currentUser.uid,
+              displayName: currentUser.displayName,
+              avatar: currentUser.avatar,
+              nativeLanguage: currentUser.language
+            },
+            [data.creatorUid]: {
+              uid: data.creatorUid,
+              displayName: data.creatorName,
+              avatar: data.creatorAvatar,
+              nativeLanguage: data.creatorLang
+            }
+          },
+          lastMessageText: 'Chat connected 🐝',
+          lastMessageTimestamp: Date.now(),
+          createdAt: Date.now()
+        };
+
+        await db.ref('chat_rooms/' + roomId).set(roomPayload);
+        await db.ref('user_chats/' + currentUser.uid + '/' + roomId).set({ roomId: roomId });
+        await db.ref('user_chats/' + data.creatorUid + '/' + roomId).set({ roomId: roomId });
+
+        modalNewChat.classList.remove('active');
+
+        openChatRoom({
+          roomId: roomId,
+          other: {
+            uid: data.creatorUid,
+            displayName: data.creatorName,
+            avatar: data.creatorAvatar,
+            nativeLanguage: data.creatorLang
+          }
+        });
+
+      } catch (err) {
+        alert('Connection error: ' + err.message);
+      }
+    });
+
+    function copyCode() {
+      navigator.clipboard.writeText(currentUser.inviteCode).then(() => {
+        alert(`Invite Code ${currentUser.inviteCode} copied to clipboard! 🐝`);
+      });
+    }
+
+    btnShareMyCode.addEventListener('click', copyCode);
+    btnCopyMyCode.addEventListener('click', copyCode);
+
+    btnCloseTranslationModal.addEventListener('click', () => {
+      modalTranslation.classList.remove('active');
+    });
+
+    [modalNewChat, modalTranslation].forEach(m => {
+      m.addEventListener('click', (e) => { if (e.target === m) m.classList.remove('active'); });
+    });
+  </script>
+</body>
+</html>
