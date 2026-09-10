@@ -211,7 +211,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         textCapitalization: TextCapitalization.words,
                         style: GoogleFonts.outfit(color: AppColors.pureWhite, fontSize: 16),
                         decoration: InputDecoration(
-                          hintText: 'e.g. Alex, Zeynep, Hamza',
+                          hintText: 'Enter your name (e.g. Alex, Maya, Jordan)',
                           errorText: _nameError,
                           prefixIcon: const Icon(Icons.person_outline_rounded, color: AppColors.charcoalMuted),
                         ),

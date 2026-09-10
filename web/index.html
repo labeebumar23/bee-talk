@@ -788,21 +788,31 @@
             <label class="form-label" for="displayNameInput">Display Name</label>
             <div class="input-wrapper">
               <span class="input-icon">👤</span>
-              <input type="text" id="displayNameInput" class="text-input" placeholder="Enter your name..." value="Hamza">
+              <input type="text" id="displayNameInput" class="text-input" placeholder="Enter your name...">
             </div>
           </div>
 
           <div class="form-group">
             <label class="form-label" for="languageSelect">Your Native Language</label>
             <select id="languageSelect" class="dropdown-select">
-              <option value="Urdu (اردو) 🇵🇰" selected>Urdu (اردو) 🇵🇰</option>
+              <option value="English (English) 🇺🇸" selected>English (English) 🇺🇸</option>
+              <option value="Indonesian (Bahasa Indonesia) 🇮🇩">Indonesian (Bahasa Indonesia) 🇮🇩</option>
+              <option value="Urdu (اردو) 🇵🇰">Urdu (اردو) 🇵🇰</option>
               <option value="Turkish (Türkçe) 🇹🇷">Turkish (Türkçe) 🇹🇷</option>
-              <option value="English (English) 🇺🇸">English (English) 🇺🇸</option>
               <option value="Spanish (Español) 🇪🇸">Spanish (Español) 🇪🇸</option>
               <option value="Arabic (العربية) 🇸🇦">Arabic (العربية) 🇸🇦</option>
+              <option value="Hindi (हिन्दी) 🇮🇳">Hindi (हिन्दी) 🇮🇳</option>
               <option value="Japanese (日本語) 🇯🇵">Japanese (日本語) 🇯🇵</option>
               <option value="German (Deutsch) 🇩🇪">German (Deutsch) 🇩🇪</option>
               <option value="French (Français) 🇫🇷">French (Français) 🇫🇷</option>
+              <option value="Chinese (中文) 🇨🇳">Chinese (中文) 🇨🇳</option>
+              <option value="Russian (Русский) 🇷🇺">Russian (Русский) 🇷🇺</option>
+              <option value="Portuguese (Português) 🇧🇷">Portuguese (Português) 🇧🇷</option>
+              <option value="Italian (Italiano) 🇮🇹">Italian (Italiano) 🇮🇹</option>
+              <option value="Korean (한국어) 🇰🇷">Korean (한국어) 🇰🇷</option>
+              <option value="Dutch (Nederlands) 🇳🇱">Dutch (Nederlands) 🇳🇱</option>
+              <option value="Polish (Polski) 🇵🇱">Polish (Polski) 🇵🇱</option>
+              <option value="Vietnamese (Tiếng Việt) 🇻🇳">Vietnamese (Tiếng Việt) 🇻🇳</option>
             </select>
           </div>
         </div>
@@ -814,7 +824,7 @@
         </button>
 
         <div style="font-size:12px; color:var(--charcoal-muted); margin-top:16px;">
-          <span>🔒 Invite-to-Chat • 30-Day Monthly Privacy Clear</span>
+          <span>🔒 Private 1-on-1 • Dynamic Real-Time Translation</span>
         </div>
       </div>
     </div>
@@ -824,14 +834,17 @@
          ========================================== -->
     <div id="screenInbox" class="screen">
       <div class="inbox-header">
-        <div class="inbox-user-info">
+        <div class="inbox-user-info" id="inboxUserInfoClick" style="cursor:pointer;">
           <div class="inbox-avatar" id="inboxUserAvatar">🐝</div>
           <div>
-            <div class="inbox-name" id="inboxUserName">Hamza</div>
+            <div class="inbox-name" id="inboxUserName">User</div>
             <div class="inbox-code-pill" id="inboxUserCode">Code: BT-XXXX</div>
           </div>
         </div>
-        <button id="btnShareMyCode" class="btn-peek" style="width:34px; height:34px; font-size:16px;" title="Copy Invite Code">📋</button>
+        <div style="display:flex; gap:6px;">
+          <button id="btnOpenSettings" class="btn-peek" style="width:34px; height:34px; font-size:16px;" title="Settings & Profile">⚙️</button>
+          <button id="btnShareMyCode" class="btn-peek" style="width:34px; height:34px; font-size:16px;" title="Copy Invite Code">📋</button>
+        </div>
       </div>
 
       <div class="search-box-wrap" style="position:relative;">
@@ -946,6 +959,63 @@
       </div>
     </div>
 
+    <!-- ==========================================
+         ⚙️ MODAL 3: SETTINGS & PROFILE EDITING
+         ========================================== -->
+    <div id="modalSettings" class="modal-overlay">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-title">
+            <span>⚙️</span>
+            <span>Settings & Profile</span>
+          </div>
+          <button class="btn-modal-close" id="btnCloseSettingsModal">✕</button>
+        </div>
+
+        <div class="setup-card" style="margin-bottom:16px;">
+          <div class="form-group">
+            <label class="form-label" for="settingsDisplayName">Display Name</label>
+            <div class="input-wrapper">
+              <span class="input-icon">👤</span>
+              <input type="text" id="settingsDisplayName" class="text-input" placeholder="Enter your name...">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="settingsLanguageSelect">Preferred Language</label>
+            <select id="settingsLanguageSelect" class="dropdown-select">
+              <option value="English (English) 🇺🇸">English (English) 🇺🇸</option>
+              <option value="Indonesian (Bahasa Indonesia) 🇮🇩">Indonesian (Bahasa Indonesia) 🇮🇩</option>
+              <option value="Urdu (اردو) 🇵🇰">Urdu (اردو) 🇵🇰</option>
+              <option value="Turkish (Türkçe) 🇹🇷">Turkish (Türkçe) 🇹🇷</option>
+              <option value="Spanish (Español) 🇪🇸">Spanish (Español) 🇪🇸</option>
+              <option value="Arabic (العربية) 🇸🇦">Arabic (العربية) 🇸🇦</option>
+              <option value="Hindi (हिन्दी) 🇮🇳">Hindi (हिन्दी) 🇮🇳</option>
+              <option value="Japanese (日本語) 🇯🇵">Japanese (日本語) 🇯🇵</option>
+              <option value="German (Deutsch) 🇩🇪">German (Deutsch) 🇩🇪</option>
+              <option value="French (Français) 🇫🇷">French (Français) 🇫🇷</option>
+              <option value="Chinese (中文) 🇨🇳">Chinese (中文) 🇨🇳</option>
+              <option value="Russian (Русский) 🇷🇺">Russian (Русский) 🇷🇺</option>
+              <option value="Portuguese (Português) 🇧🇷">Portuguese (Português) 🇧🇷</option>
+              <option value="Italian (Italiano) 🇮🇹">Italian (Italiano) 🇮🇹</option>
+              <option value="Korean (한국어) 🇰🇷">Korean (한국어) 🇰🇷</option>
+              <option value="Dutch (Nederlands) 🇳🇱">Dutch (Nederlands) 🇳🇱</option>
+              <option value="Polish (Polski) 🇵🇱">Polish (Polski) 🇵🇱</option>
+              <option value="Vietnamese (Tiếng Việt) 🇻🇳">Vietnamese (Tiếng Việt) 🇻🇳</option>
+            </select>
+          </div>
+        </div>
+
+        <button id="btnSaveSettings" class="btn-start" style="margin-bottom:12px;">
+          <span>Save Changes</span>
+        </button>
+
+        <button id="btnResetSession" class="btn-peek" style="width:100%; border-radius:12px; height:40px; color:var(--error-red); border:1px solid var(--charcoal-border);">
+          <span>Reset Session / Sign Out</span>
+        </button>
+      </div>
+    </div>
+
   </div>
 
   <!-- ==========================================
@@ -967,7 +1037,7 @@
     const auth = firebase.auth();
     const db = firebase.database();
 
-    const avatars = ['🐝', '🍯', '👑', '⚡', '🌻', '🚀', '✨'];
+    const avatars = ['🐝', '🍯', '👑', '⚡', '🌻', '🚀', '✨', '🔥'];
     let avatarIndex = 0;
     let currentUser = null;
     let activeChatRoom = null;
@@ -978,17 +1048,35 @@
     // Translation Cache
     const translationCache = {};
 
+    const LANG_MAP = [
+      { code: 'en', names: ['english', 'en'] },
+      { code: 'id', names: ['indonesian', 'bahasa indonesia', 'bahasa', 'id'] },
+      { code: 'ur', names: ['urdu', 'اردو', 'ur'] },
+      { code: 'tr', names: ['turkish', 'türkçe', 'tr'] },
+      { code: 'es', names: ['spanish', 'español', 'es'] },
+      { code: 'ar', names: ['arabic', 'العربية', 'ar'] },
+      { code: 'hi', names: ['hindi', 'हिन्दी', 'hi'] },
+      { code: 'ja', names: ['japanese', '日本語', 'ja'] },
+      { code: 'de', names: ['german', 'deutsch', 'de'] },
+      { code: 'fr', names: ['french', 'français', 'fr'] },
+      { code: 'zh', names: ['chinese', '中文', 'zh'] },
+      { code: 'ru', names: ['russian', 'русский', 'ru'] },
+      { code: 'pt', names: ['portuguese', 'português', 'pt'] },
+      { code: 'it', names: ['italian', 'italiano', 'it'] },
+      { code: 'ko', names: ['korean', '한국어', 'ko'] },
+      { code: 'nl', names: ['dutch', 'nederlands', 'nl'] },
+      { code: 'pl', names: ['polish', 'polski', 'pl'] },
+      { code: 'vi', names: ['vietnamese', 'tiếng việt', 'vi'] }
+    ];
+
     function parseLangCode(langStr) {
       if (!langStr) return 'en';
-      const clean = langStr.toLowerCase();
-      if (clean.includes('urdu') || clean.includes('ur')) return 'ur';
-      if (clean.includes('turkish') || clean.includes('türkçe') || clean.includes('tr')) return 'tr';
-      if (clean.includes('english') || clean.includes('en')) return 'en';
-      if (clean.includes('spanish') || clean.includes('español') || clean.includes('es')) return 'es';
-      if (clean.includes('arabic') || clean.includes('العربية') || clean.includes('ar')) return 'ar';
-      if (clean.includes('japanese') || clean.includes('日本語') || clean.includes('ja')) return 'ja';
-      if (clean.includes('german') || clean.includes('deutsch') || clean.includes('de')) return 'de';
-      if (clean.includes('french') || clean.includes('français') || clean.includes('fr')) return 'fr';
+      const clean = langStr.trim().toLowerCase();
+      for (const item of LANG_MAP) {
+        if (item.names.some(n => clean.includes(n) || clean === n || clean.startsWith(n))) {
+          return item.code;
+        }
+      }
       return langStr.trim().split(' ')[0].toLowerCase();
     }
 
@@ -1007,6 +1095,7 @@
         return translationCache[cacheKey];
       }
 
+      // 1. Primary Engine
       try {
         const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${src}&tl=${tgt}&dt=t&q=${encodeURIComponent(trimmed)}`;
         const res = await fetch(url);
@@ -1021,7 +1110,23 @@
           }
         }
       } catch (err) {
-        console.warn('Dynamic translate notice:', err);
+        console.warn('Primary translate notice:', err);
+      }
+
+      // 2. Fallback Engine
+      try {
+        const fallbackUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(trimmed)}&langpair=${src}|${tgt}`;
+        const res = await fetch(fallbackUrl);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.responseData && data.responseData.translatedText && !data.responseData.translatedText.startsWith('MYMEMORY WARNING')) {
+            const translated = data.responseData.translatedText;
+            translationCache[cacheKey] = translated;
+            return translated;
+          }
+        }
+      } catch (err) {
+        console.warn('Fallback translate error:', err);
       }
 
       return trimmed;
@@ -1050,6 +1155,8 @@
     const inboxSearchInput = document.getElementById('inboxSearchInput');
     const btnFabNewChat = document.getElementById('btnFabNewChat');
     const btnShareMyCode = document.getElementById('btnShareMyCode');
+    const btnOpenSettings = document.getElementById('btnOpenSettings');
+    const inboxUserInfoClick = document.getElementById('inboxUserInfoClick');
 
     // Chat Room Elements
     const btnBackToInbox = document.getElementById('btnBackToInbox');
@@ -1074,6 +1181,13 @@
     const modalOriginalText = document.getElementById('modalOriginalText');
     const modalTranslatedText = document.getElementById('modalTranslatedText');
 
+    const modalSettings = document.getElementById('modalSettings');
+    const btnCloseSettingsModal = document.getElementById('btnCloseSettingsModal');
+    const settingsDisplayName = document.getElementById('settingsDisplayName');
+    const settingsLanguageSelect = document.getElementById('settingsLanguageSelect');
+    const btnSaveSettings = document.getElementById('btnSaveSettings');
+    const btnResetSession = document.getElementById('btnResetSession');
+
     function generateInviteCode() {
       const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
       let res = 'BT-';
@@ -1085,6 +1199,43 @@
       avatarIndex = (avatarIndex + 1) % avatars.length;
       currentAvatarEmoji.textContent = avatars[avatarIndex];
     });
+
+    // Check Local Storage Session on Startup
+    window.addEventListener('DOMContentLoaded', () => {
+      try {
+        const saved = localStorage.getItem('bee_talk_user');
+        if (saved) {
+          const u = JSON.parse(saved);
+          if (u && u.uid && u.displayName && u.language) {
+            currentUser = u;
+            initLoggedInSession();
+          }
+        }
+      } catch (e) {
+        console.warn('Session load error:', e);
+      }
+    });
+
+    function initLoggedInSession() {
+      inboxUserAvatar.textContent = currentUser.avatar || '🐝';
+      inboxUserName.textContent = currentUser.displayName;
+      inboxUserCode.textContent = `Code: ${currentUser.inviteCode}`;
+      modalMyCodeDisplay.textContent = currentUser.inviteCode;
+
+      screenOnboarding.classList.remove('active');
+      screenInbox.classList.add('active');
+
+      // Setup Presence
+      const presRef = db.ref('presence/' + currentUser.uid);
+      db.ref('.info/connected').on('value', (snap) => {
+        if (snap.val() === true) {
+          presRef.onDisconnect().set({ isOnline: false, lastSeen: firebase.database.ServerValue.TIMESTAMP });
+          presRef.set({ isOnline: true, lastSeen: firebase.database.ServerValue.TIMESTAMP });
+        }
+      });
+
+      listenToInboxChats();
+    }
 
     // Onboarding Submit
     btnStartChat.addEventListener('click', async () => {
@@ -1112,7 +1263,10 @@
           inviteCode: inviteCode
         };
 
-        // Save User
+        // Save User in Local Storage for Persistence
+        localStorage.setItem('bee_talk_user', JSON.stringify(currentUser));
+
+        // Save User in Firebase
         await db.ref('users/' + uid).set({
           uid: uid,
           displayName: name,
@@ -1133,25 +1287,7 @@
           createdAt: firebase.database.ServerValue.TIMESTAMP
         });
 
-        // Setup Presence
-        const presRef = db.ref('presence/' + uid);
-        db.ref('.info/connected').on('value', (snap) => {
-          if (snap.val() === true) {
-            presRef.onDisconnect().set({ isOnline: false, lastSeen: firebase.database.ServerValue.TIMESTAMP });
-            presRef.set({ isOnline: true, lastSeen: firebase.database.ServerValue.TIMESTAMP });
-          }
-        });
-
-        // Switch to Inbox Screen
-        inboxUserAvatar.textContent = avatar;
-        inboxUserName.textContent = name;
-        inboxUserCode.textContent = `Code: ${inviteCode}`;
-        modalMyCodeDisplay.textContent = inviteCode;
-
-        screenOnboarding.classList.remove('active');
-        screenInbox.classList.add('active');
-
-        listenToInboxChats();
+        initLoggedInSession();
 
       } catch (err) {
         alert('Firebase Error: ' + err.message);
@@ -1160,6 +1296,56 @@
         btnIcon.style.display = 'inline';
         btnSpinner.style.display = 'none';
         btnStartChat.disabled = false;
+      }
+    });
+
+    // Settings Flow
+    function openSettingsModal() {
+      if (!currentUser) return;
+      settingsDisplayName.value = currentUser.displayName;
+      settingsLanguageSelect.value = currentUser.language;
+      modalSettings.classList.add('active');
+    }
+
+    btnOpenSettings.addEventListener('click', openSettingsModal);
+    inboxUserInfoClick.addEventListener('click', openSettingsModal);
+
+    btnCloseSettingsModal.addEventListener('click', () => {
+      modalSettings.classList.remove('active');
+    });
+
+    btnSaveSettings.addEventListener('click', async () => {
+      const newName = settingsDisplayName.value.trim();
+      if (!newName) { alert('Name cannot be empty'); return; }
+
+      const newLang = settingsLanguageSelect.value;
+      currentUser.displayName = newName;
+      currentUser.language = newLang;
+
+      localStorage.setItem('bee_talk_user', JSON.stringify(currentUser));
+
+      inboxUserName.textContent = newName;
+
+      await db.ref('users/' + currentUser.uid).update({
+        displayName: newName,
+        nativeLanguage: newLang
+      });
+
+      if (currentUser.inviteCode) {
+        await db.ref('invites/' + currentUser.inviteCode).update({
+          creatorName: newName,
+          creatorLang: newLang
+        });
+      }
+
+      modalSettings.classList.remove('active');
+      alert('Profile updated successfully! 🐝');
+    });
+
+    btnResetSession.addEventListener('click', () => {
+      if (confirm('Reset your profile and session? This will return to onboarding.')) {
+        localStorage.removeItem('bee_talk_user');
+        location.reload();
       }
     });
 
@@ -1173,7 +1359,7 @@
             <div style="text-align:center; padding:40px 20px; color:var(--charcoal-muted);">
               <div style="font-size:44px; margin-bottom:8px;">🐝</div>
               <div style="font-size:16px; font-weight:800; color:var(--pure-white);">No Chats Yet</div>
-              <div style="font-size:13px; margin-top:4px;">Share your code <b>(${currentUser.inviteCode})</b> or tap '+ New Chat' to connect with someone!</div>
+              <div style="font-size:13px; margin-top:4px;">Share your code <b>(${currentUser.inviteCode})</b> or tap '+ New Chat' to connect in any language!</div>
             </div>
           `;
           return;
@@ -1466,7 +1652,7 @@
       modalTranslation.classList.remove('active');
     });
 
-    [modalNewChat, modalTranslation].forEach(m => {
+    [modalNewChat, modalTranslation, modalSettings].forEach(m => {
       m.addEventListener('click', (e) => { if (e.target === m) m.classList.remove('active'); });
     });
   </script>

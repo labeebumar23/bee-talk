@@ -7,9 +7,10 @@ import 'package:http/http.dart' as http;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // ==========================================
-// 🚀 APP ENTRY & FIREBASE INITIALIZATION
+// 🚀 APP ENTRY & SESSION INITIALIZATION
 // ==========================================
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,7 +28,26 @@ void main() async {
     ),
   );
 
-  runApp(const BeeTalkApp());
+  final prefs = await SharedPreferences.getInstance();
+  final isOnboarded = prefs.getBool('pref_is_onboarded') ?? false;
+  final uid = prefs.getString('pref_user_uid');
+  final displayName = prefs.getString('pref_display_name');
+  final nativeLanguage = prefs.getString('pref_native_language');
+  final avatar = prefs.getString('pref_avatar') ?? '🐝';
+  final inviteCode = prefs.getString('pref_invite_code') ?? '';
+
+  AppUser? savedUser;
+  if (isOnboarded && uid != null && displayName != null && displayName.isNotEmpty && nativeLanguage != null) {
+    savedUser = AppUser(
+      uid: uid,
+      displayName: displayName,
+      nativeLanguage: nativeLanguage,
+      avatar: avatar,
+      inviteCode: inviteCode,
+    );
+  }
+
+  runApp(BeeTalkApp(initialUser: savedUser));
 }
 
 // ==========================================
@@ -51,21 +71,80 @@ class BeeColors {
 }
 
 // ==========================================
+// 🌍 SUPPORTED LANGUAGES
+// ==========================================
+class BeeLanguage {
+  final String code;
+  final String name;
+  final String nativeName;
+  final String flag;
+
+  const BeeLanguage({
+    required this.code,
+    required this.name,
+    required this.nativeName,
+    required this.flag,
+  });
+
+  String get label => '$name ($nativeName) $flag';
+}
+
+class BeeLanguages {
+  static const List<BeeLanguage> all = [
+    BeeLanguage(code: 'en', name: 'English', nativeName: 'English', flag: '🇺🇸'),
+    BeeLanguage(code: 'id', name: 'Indonesian', nativeName: 'Bahasa Indonesia', flag: '🇮🇩'),
+    BeeLanguage(code: 'ur', name: 'Urdu', nativeName: 'اردو', flag: '🇵🇰'),
+    BeeLanguage(code: 'tr', name: 'Turkish', nativeName: 'Türkçe', flag: '🇹🇷'),
+    BeeLanguage(code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸'),
+    BeeLanguage(code: 'ar', name: 'Arabic', nativeName: 'العربية', flag: '🇸🇦'),
+    BeeLanguage(code: 'hi', name: 'Hindi', nativeName: 'हिन्दी', flag: '🇮🇳'),
+    BeeLanguage(code: 'fr', name: 'French', nativeName: 'Français', flag: '🇫🇷'),
+    BeeLanguage(code: 'de', name: 'German', nativeName: 'Deutsch', flag: '🇩🇪'),
+    BeeLanguage(code: 'ja', name: 'Japanese', nativeName: '日本語', flag: '🇯🇵'),
+    BeeLanguage(code: 'zh', name: 'Chinese', nativeName: '中文', flag: '🇨🇳'),
+    BeeLanguage(code: 'ru', name: 'Russian', nativeName: 'Русский', flag: '🇷🇺'),
+    BeeLanguage(code: 'pt', name: 'Portuguese', nativeName: 'Português', flag: '🇧🇷'),
+    BeeLanguage(code: 'it', name: 'Italian', nativeName: 'Italiano', flag: '🇮🇹'),
+    BeeLanguage(code: 'ko', name: 'Korean', nativeName: '한국어', flag: '🇰🇷'),
+    BeeLanguage(code: 'nl', name: 'Dutch', nativeName: 'Nederlands', flag: '🇳🇱'),
+    BeeLanguage(code: 'pl', name: 'Polish', nativeName: 'Polski', flag: '🇵🇱'),
+    BeeLanguage(code: 'vi', name: 'Vietnamese', nativeName: 'Tiếng Việt', flag: '🇻🇳'),
+  ];
+
+  static List<String> get labels => all.map((l) => l.label).toList();
+
+  static BeeLanguage getByCode(String code) {
+    return all.firstWhere(
+      (l) => l.code.toLowerCase() == code.toLowerCase(),
+      orElse: () => all.first,
+    );
+  }
+
+  static BeeLanguage getByLabel(String label) {
+    final clean = label.toLowerCase();
+    return all.firstWhere(
+      (l) => clean.contains(l.name.toLowerCase()) || clean.contains(l.nativeName.toLowerCase()) || clean.startsWith(l.code),
+      orElse: () => all.first,
+    );
+  }
+}
+
+// ==========================================
 // 🌐 REAL-TIME DYNAMIC TRANSLATION ENGINE
 // ==========================================
 class RealtimeTranslator {
   static final Map<String, String> _cache = {};
 
   static String extractLangCode(String langStr) {
-    final clean = langStr.toLowerCase();
-    if (clean.contains('urdu') || clean.contains('ur')) return 'ur';
-    if (clean.contains('turkish') || clean.contains('türkçe') || clean.contains('tr')) return 'tr';
-    if (clean.contains('english') || clean.contains('en')) return 'en';
-    if (clean.contains('spanish') || clean.contains('español') || clean.contains('es')) return 'es';
-    if (clean.contains('arabic') || clean.contains('العربية') || clean.contains('ar')) return 'ar';
-    if (clean.contains('japanese') || clean.contains('日本語') || clean.contains('ja')) return 'ja';
-    if (clean.contains('german') || clean.contains('deutsch') || clean.contains('de')) return 'de';
-    if (clean.contains('french') || clean.contains('français') || clean.contains('fr')) return 'fr';
+    final clean = langStr.trim().toLowerCase();
+    for (final lang in BeeLanguages.all) {
+      if (clean.contains(lang.name.toLowerCase()) ||
+          clean.contains(lang.nativeName.toLowerCase()) ||
+          clean == lang.code ||
+          clean.startsWith('${lang.code} ')) {
+        return lang.code;
+      }
+    }
     return langStr.trim().split(' ')[0].toLowerCase();
   }
 
@@ -87,6 +166,7 @@ class RealtimeTranslator {
       return _cache[cacheKey]!;
     }
 
+    // 1. Primary Engine: Google Translate API
     try {
       final url = Uri.parse(
         'https://translate.googleapis.com/translate_a/single?client=gtx&sl=$src&tl=$tgt&dt=t&q=${Uri.encodeComponent(trimmed)}',
@@ -110,7 +190,25 @@ class RealtimeTranslator {
         }
       }
     } catch (e) {
-      debugPrint('Real-time translation error: $e');
+      debugPrint('Primary translation error: $e. Trying fallback...');
+    }
+
+    // 2. Fallback Engine: MyMemory API
+    try {
+      final fallbackUrl = Uri.parse(
+        'https://api.mymemory.translated.net/get?q=${Uri.encodeComponent(trimmed)}&langpair=$src|$tgt',
+      );
+      final response = await http.get(fallbackUrl).timeout(const Duration(seconds: 4));
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        final translated = data['responseData']?['translatedText']?.toString();
+        if (translated != null && translated.isNotEmpty && !translated.startsWith('MYMEMORY WARNING')) {
+          _cache[cacheKey] = translated;
+          return translated;
+        }
+      }
+    } catch (e) {
+      debugPrint('Fallback translation error: $e');
     }
 
     return trimmed;
@@ -121,7 +219,9 @@ class RealtimeTranslator {
 // 📱 MAIN APPLICATION ENTRY WIDGET
 // ==========================================
 class BeeTalkApp extends StatelessWidget {
-  const BeeTalkApp({super.key});
+  final AppUser? initialUser;
+
+  const BeeTalkApp({super.key, this.initialUser});
 
   @override
   Widget build(BuildContext context) {
@@ -139,7 +239,7 @@ class BeeTalkApp extends StatelessWidget {
           onSurface: BeeColors.white,
         ),
       ),
-      home: const OnboardingScreen(),
+      home: initialUser != null ? InboxScreen(currentUser: initialUser!) : const OnboardingScreen(),
     );
   }
 }
@@ -148,11 +248,11 @@ class BeeTalkApp extends StatelessWidget {
 // 📦 USER & CHAT DATA MODELS
 // ==========================================
 class AppUser {
-  final String uid;
-  final String displayName;
-  final String nativeLanguage;
-  final String avatar;
-  final String inviteCode;
+  String uid;
+  String displayName;
+  String nativeLanguage;
+  String avatar;
+  String inviteCode;
 
   AppUser({
     required this.uid,
@@ -234,24 +334,14 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  final TextEditingController _nameController = TextEditingController(text: 'Hamza');
-  String _selectedLanguage = 'Urdu (اردو) 🇵🇰';
+  final TextEditingController _nameController = TextEditingController();
+  String _selectedLanguage = 'English (English) 🇺🇸';
   int _avatarIndex = 0;
   String? _error;
   bool _isLoading = false;
 
-  final List<String> _languages = [
-    'Urdu (اردو) 🇵🇰',
-    'Turkish (Türkçe) 🇹🇷',
-    'English (English) 🇺🇸',
-    'Spanish (Español) 🇪🇸',
-    'Arabic (العربية) 🇸🇦',
-    'Japanese (日本語) 🇯🇵',
-    'German (Deutsch) 🇩🇪',
-    'French (Français) 🇫🇷',
-  ];
-
-  final List<String> _avatars = ['🐝', '🍯', '👑', '⚡', '🌻', '🚀', '✨'];
+  final List<String> _languages = BeeLanguages.labels;
+  final List<String> _avatars = ['🐝', '🍯', '👑', '⚡', '🌻', '🚀', '✨', '🔥'];
 
   void _shuffleAvatar() {
     setState(() {
@@ -300,9 +390,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         inviteCode: inviteCode,
       );
 
+      // Save user profile locally in SharedPreferences for session persistence
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('pref_user_uid', uid);
+      await prefs.setString('pref_display_name', name);
+      await prefs.setString('pref_native_language', _selectedLanguage);
+      await prefs.setString('pref_avatar', avatar);
+      await prefs.setString('pref_invite_code', inviteCode);
+      await prefs.setBool('pref_is_onboarded', true);
+
       final dbRef = FirebaseDatabase.instance.ref();
       
-      // Save User Profile
+      // Save User Profile in Firebase
       await dbRef.child('users').child(uid).set(currentUser.toMap());
 
       // Register Invite Code
@@ -450,7 +549,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 const SizedBox(height: 8),
                 const Center(
                   child: Text(
-                    'Tap avatar to change mood',
+                    'Tap avatar to change icon',
                     style: TextStyle(fontSize: 12, color: BeeColors.charcoalMuted),
                   ),
                 ),
@@ -556,7 +655,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       : const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text('Start Chat', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                            Text('Get Started', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
                             SizedBox(width: 8),
                             Text('🐝', style: TextStyle(fontSize: 18)),
                           ],
@@ -569,7 +668,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   children: [
                     Icon(Icons.lock_outline, size: 14, color: BeeColors.charcoalMuted),
                     SizedBox(width: 6),
-                    Text('Invite-to-Chat • Dynamic Real-Time Translation', style: TextStyle(fontSize: 12, color: BeeColors.charcoalMuted)),
+                    Text('Private 1-on-1 Chats • Real-Time Dynamic Translation', style: TextStyle(fontSize: 12, color: BeeColors.charcoalMuted)),
                   ],
                 ),
               ],
@@ -868,6 +967,19 @@ class _InboxScreenState extends State<InboxScreen> {
     );
   }
 
+  void _openSettings() async {
+    final updated = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SettingsScreen(currentUser: widget.currentUser),
+      ),
+    );
+
+    if (updated == true && mounted) {
+      setState(() {});
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final filteredRooms = _chatRooms.where((room) {
@@ -881,30 +993,42 @@ class _InboxScreenState extends State<InboxScreen> {
       appBar: AppBar(
         backgroundColor: BeeColors.charcoal,
         elevation: 0,
-        title: Row(
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(colors: [BeeColors.yellowAccent, BeeColors.yellowDark]),
+        title: GestureDetector(
+          onTap: _openSettings,
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(colors: [BeeColors.yellowAccent, BeeColors.yellowDark]),
+                ),
+                child: Center(child: Text(widget.currentUser.avatar, style: const TextStyle(fontSize: 20))),
               ),
-              child: Center(child: Text(widget.currentUser.avatar, style: const TextStyle(fontSize: 20))),
-            ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(widget.currentUser.displayName, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: BeeColors.white)),
-                Text("Code: ${widget.currentUser.inviteCode}", style: const TextStyle(fontSize: 11, color: BeeColors.yellow, fontWeight: FontWeight.w600)),
-              ],
-            ),
-          ],
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(widget.currentUser.displayName, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: BeeColors.white)),
+                  Text(
+                    "${widget.currentUser.nativeLanguage.split(' ')[0]} • Code: ${widget.currentUser.inviteCode}",
+                    style: const TextStyle(fontSize: 11, color: BeeColors.yellow, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.settings_outlined, color: BeeColors.white),
+            tooltip: 'Settings & Profile',
+            onPressed: _openSettings,
+          ),
+          IconButton(
             icon: const Icon(Icons.share_outlined, color: BeeColors.yellow),
+            tooltip: 'Share Invite Code',
             onPressed: () {
               Clipboard.setData(ClipboardData(text: widget.currentUser.inviteCode));
               ScaffoldMessenger.of(context).showSnackBar(
@@ -962,7 +1086,7 @@ class _InboxScreenState extends State<InboxScreen> {
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    '🔒 Dynamic Instant Translation • Monthly Auto-Clear Active (30 days)',
+                    '🔒 Dynamic Multi-Language Translation • 30-Day Auto Retention',
                     style: TextStyle(fontSize: 11, color: BeeColors.charcoalMuted),
                   ),
                 ),
@@ -986,7 +1110,7 @@ class _InboxScreenState extends State<InboxScreen> {
                               const Text('No Chats Yet', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: BeeColors.white)),
                               const SizedBox(height: 6),
                               Text(
-                                'Share your invite code (${widget.currentUser.inviteCode}) or tap "+ New Chat" to start your first cross-language conversation!',
+                                'Share your invite code (${widget.currentUser.inviteCode}) or tap "+ New Chat" to start a conversation in any language!',
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(fontSize: 13, color: BeeColors.charcoalMuted),
                               ),
@@ -1074,6 +1198,333 @@ class _InboxScreenState extends State<InboxScreen> {
                       ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// ⚙️ SCREEN 4: SETTINGS & PROFILE EDITING
+// ==========================================
+class SettingsScreen extends StatefulWidget {
+  final AppUser currentUser;
+
+  const SettingsScreen({super.key, required this.currentUser});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  late TextEditingController _nameController;
+  late String _selectedLanguage;
+  late String _avatar;
+  bool _isSaving = false;
+
+  final List<String> _avatars = ['🐝', '🍯', '👑', '⚡', '🌻', '🚀', '✨', '🔥'];
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.currentUser.displayName);
+    _selectedLanguage = widget.currentUser.nativeLanguage;
+    _avatar = widget.currentUser.avatar;
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveChanges() async {
+    final newName = _nameController.text.trim();
+    if (newName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Display name cannot be empty'), backgroundColor: BeeColors.errorRed),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    try {
+      // 1. Update in SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('pref_display_name', newName);
+      await prefs.setString('pref_native_language', _selectedLanguage);
+      await prefs.setString('pref_avatar', _avatar);
+
+      // 2. Update In-Memory User
+      widget.currentUser.displayName = newName;
+      widget.currentUser.nativeLanguage = _selectedLanguage;
+      widget.currentUser.avatar = _avatar;
+
+      // 3. Update Firebase Database
+      final dbRef = FirebaseDatabase.instance.ref();
+      await dbRef.child('users').child(widget.currentUser.uid).update({
+        'displayName': newName,
+        'nativeLanguage': _selectedLanguage,
+        'avatar': _avatar,
+      });
+
+      if (widget.currentUser.inviteCode.isNotEmpty) {
+        await dbRef.child('invites').child(widget.currentUser.inviteCode).update({
+          'creatorName': newName,
+          'creatorLang': _selectedLanguage,
+          'creatorAvatar': _avatar,
+        });
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile updated successfully! 🐝'), backgroundColor: BeeColors.yellow),
+      );
+
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving changes: $e'), backgroundColor: BeeColors.errorRed),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _handleLogout() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: BeeColors.charcoalSurface,
+        title: const Text('Reset Profile?', style: TextStyle(color: BeeColors.white, fontWeight: FontWeight.bold)),
+        content: const Text(
+          'This will clear your local session and return you to onboarding.',
+          style: TextStyle(color: BeeColors.charcoalMuted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: BeeColors.charcoalMuted)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: BeeColors.errorRed, foregroundColor: BeeColors.white),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+        (route) => false,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: BeeColors.charcoal,
+      appBar: AppBar(
+        backgroundColor: BeeColors.charcoal,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, size: 18, color: BeeColors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text('Settings & Profile', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: BeeColors.white)),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: TextButton(
+              onPressed: _isSaving ? null : _saveChanges,
+              child: _isSaving
+                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: BeeColors.yellow))
+                  : const Text('Save', style: TextStyle(color: BeeColors.yellow, fontWeight: FontWeight.w800, fontSize: 16)),
+            ),
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Avatar Selector
+            Center(
+              child: Column(
+                children: [
+                  Container(
+                    width: 86,
+                    height: 86,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(colors: [BeeColors.yellowAccent, BeeColors.yellowDark]),
+                      border: Border.all(color: BeeColors.charcoalBorder, width: 3),
+                    ),
+                    child: Center(child: Text(_avatar, style: const TextStyle(fontSize: 42))),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text('Choose Avatar', style: TextStyle(fontSize: 13, color: BeeColors.charcoalMuted, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 10,
+                    children: _avatars.map((av) {
+                      final isSelected = av == _avatar;
+                      return GestureDetector(
+                        onTap: () => setState(() => _avatar = av),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isSelected ? BeeColors.yellow : BeeColors.charcoalCard,
+                            border: Border.all(color: isSelected ? BeeColors.yellowDark : BeeColors.charcoalBorder, width: 2),
+                          ),
+                          child: Text(av, style: const TextStyle(fontSize: 22)),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 28),
+
+            // Profile Fields
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: BeeColors.charcoalSurface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: BeeColors.charcoalBorder),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Display Name', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: BeeColors.white)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _nameController,
+                    style: const TextStyle(color: BeeColors.white, fontSize: 16),
+                    decoration: InputDecoration(
+                      prefixIcon: const Icon(Icons.person_outline, color: BeeColors.yellow),
+                      filled: true,
+                      fillColor: BeeColors.charcoal,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: BeeColors.charcoalBorder)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: BeeColors.yellow, width: 2)),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  const Text('Preferred Language', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: BeeColors.white)),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: BeeColors.charcoal,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: BeeColors.charcoalBorder),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _selectedLanguage,
+                        isExpanded: true,
+                        dropdownColor: BeeColors.charcoalSurface,
+                        icon: const Icon(Icons.keyboard_arrow_down, color: BeeColors.yellow),
+                        items: BeeLanguages.labels.map((String lang) {
+                          return DropdownMenuItem<String>(
+                            value: lang,
+                            child: Text(
+                              lang,
+                              style: const TextStyle(color: BeeColors.white, fontSize: 15, fontWeight: FontWeight.w600),
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (String? val) {
+                          if (val != null) setState(() => _selectedLanguage = val);
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Invite Code Info
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: BeeColors.charcoalSurface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: BeeColors.charcoalBorder),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Your Invite Code', style: TextStyle(fontSize: 12, color: BeeColors.charcoalMuted)),
+                      const SizedBox(height: 4),
+                      Text(widget.currentUser.inviteCode, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: BeeColors.yellow, letterSpacing: 1.5)),
+                    ],
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: widget.currentUser.inviteCode));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Code ${widget.currentUser.inviteCode} copied!'), backgroundColor: BeeColors.yellow),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(backgroundColor: BeeColors.charcoalCard, foregroundColor: BeeColors.white),
+                    icon: const Icon(Icons.copy, size: 16, color: BeeColors.yellow),
+                    label: const Text('Copy'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Save Button
+            ElevatedButton(
+              onPressed: _isSaving ? null : _saveChanges,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: BeeColors.yellow,
+                foregroundColor: BeeColors.charcoal,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              child: _isSaving
+                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: BeeColors.charcoal))
+                  : const Text('Save Changes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+            ),
+            const SizedBox(height: 16),
+
+            // Reset Profile / Sign Out
+            OutlinedButton.icon(
+              onPressed: _handleLogout,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: BeeColors.errorRed,
+                side: const BorderSide(color: BeeColors.charcoalBorder),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              icon: const Icon(Icons.logout, size: 18),
+              label: const Text('Reset Profile / Sign Out'),
+            ),
+          ],
+        ),
       ),
     );
   }
