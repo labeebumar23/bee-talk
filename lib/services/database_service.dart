@@ -139,6 +139,7 @@ class DatabaseService {
       lastMessageSenderId: joiningUser.uid,
       lastMessageSenderLang: joiningUser.nativeLanguage,
       lastMessageTimestamp: DateTime.now().millisecondsSinceEpoch,
+      lastMessageStatus: 'sent',
       createdAt: DateTime.now().millisecondsSinceEpoch,
     );
 
@@ -162,13 +163,13 @@ class DatabaseService {
   }
 
   // ----------------------------------------------------
-  // REAL-TIME CHAT ROOMS & MESSAGING WITH MONTHLY AUTO-CLEAR
+  // OPTIMIZED REAL-TIME CHAT ROOMS & PARALLEL INBOX FETCHING
   // ----------------------------------------------------
 
   /// Retention period for monthly auto-clear (30 days in milliseconds)
   static const int monthlyRetentionMs = 30 * 24 * 60 * 60 * 1000;
 
-  /// Real-time stream of all active chat rooms for the current user
+  /// Parallel-optimized real-time stream of all active chat rooms for current user
   Stream<List<ChatRoom>> getUserChatRoomsStream(String uid) {
     return _userChatsRef.child(uid).onValue.asyncMap((event) async {
       if (!event.snapshot.exists || event.snapshot.value == null) {
@@ -177,27 +178,41 @@ class DatabaseService {
 
       final data = event.snapshot.value as Map;
       final roomIds = data.keys.map((k) => k.toString()).toList();
-      final List<ChatRoom> rooms = [];
 
-      for (final roomId in roomIds) {
-        final roomSnap = await _chatRoomsRef.child(roomId).get();
-        if (roomSnap.exists && roomSnap.value is Map) {
-          final room = ChatRoom.fromMap(roomSnap.value as Map, roomId: roomId);
+      // Parallel fetch to eliminate sequential N+1 network waterfall delay
+      final snapshots = await Future.wait(
+        roomIds.map((roomId) => _chatRoomsRef.child(roomId).get()),
+      );
+
+      final List<ChatRoom> rooms = [];
+      for (int i = 0; i < snapshots.length; i++) {
+        final snap = snapshots[i];
+        if (snap.exists && snap.value is Map) {
+          final room = ChatRoom.fromMap(snap.value as Map, roomId: roomIds[i]);
           rooms.add(room);
         }
       }
 
-      // Sort by newest message first
+      // Sort by newest message timestamp first
       rooms.sort((a, b) => b.lastMessageTimestamp.compareTo(a.lastMessageTimestamp));
       return rooms;
     });
   }
 
-  /// Real-time stream of messages in a room with automated 30-day monthly auto-clear privacy
-  Stream<List<Message>> getMessagesStream(String roomId) {
+  // ----------------------------------------------------
+  // PAGINATED MESSAGES & REAL-TIME READ RECEIPTS
+  // ----------------------------------------------------
+
+  /// Stream paginated recent messages (default last 25) with auto 30-day retention pruning
+  Stream<List<Message>> getMessagesStream(String roomId, {int limit = 30}) {
     final cutoffTimestamp = DateTime.now().millisecondsSinceEpoch - monthlyRetentionMs;
 
-    return _messagesRef.child(roomId).orderByChild('timestamp').onValue.map((event) {
+    return _messagesRef
+        .child(roomId)
+        .orderByChild('timestamp')
+        .limitToLast(limit)
+        .onValue
+        .map((event) {
       if (!event.snapshot.exists || event.snapshot.value == null) {
         return <Message>[];
       }
@@ -217,7 +232,7 @@ class DatabaseService {
         }
       });
 
-      // Asynchronously prune expired messages older than 30 days from database (Privacy)
+      // Asynchronously prune expired messages older than 30 days
       if (expiredMessageIds.isNotEmpty) {
         for (final expiredId in expiredMessageIds) {
           _messagesRef.child(roomId).child(expiredId).remove();
@@ -229,7 +244,47 @@ class DatabaseService {
     });
   }
 
-  /// Sends a message and updates the room's last message metadata
+  /// Load older historical messages before a specific timestamp for pagination
+  Future<List<Message>> loadEarlierMessages({
+    required String roomId,
+    required int endAtTimestamp,
+    int limit = 25,
+  }) async {
+    final cutoffTimestamp = DateTime.now().millisecondsSinceEpoch - monthlyRetentionMs;
+
+    try {
+      final snap = await _messagesRef
+          .child(roomId)
+          .orderByChild('timestamp')
+          .endBefore(endAtTimestamp)
+          .limitToLast(limit)
+          .get();
+
+      if (!snap.exists || snap.value == null || snap.value is! Map) {
+        return [];
+      }
+
+      final data = snap.value as Map;
+      final List<Message> earlierMessages = [];
+
+      data.forEach((key, val) {
+        if (val is Map) {
+          final msg = Message.fromMap(val, id: key.toString(), roomId: roomId);
+          if (msg.timestamp >= cutoffTimestamp) {
+            earlierMessages.add(msg);
+          }
+        }
+      });
+
+      earlierMessages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      return earlierMessages;
+    } catch (e) {
+      debugPrint('Error loading earlier messages: $e');
+      return [];
+    }
+  }
+
+  /// Sends a message and updates the room's last message metadata with 'sent' status
   Future<void> sendMessage({
     required String roomId,
     required AppUser sender,
@@ -247,9 +302,10 @@ class DatabaseService {
       originalText: text.trim(),
       senderLanguage: sender.nativeLanguage,
       timestamp: timestamp,
+      status: 'sent',
     );
 
-    // Save message
+    // Save message with 'sent' status
     await messageRef.set(message.toMap());
 
     // Update room summary
@@ -258,6 +314,82 @@ class DatabaseService {
       'lastMessageSenderId': sender.uid,
       'lastMessageSenderLang': sender.nativeLanguage,
       'lastMessageTimestamp': timestamp,
+      'lastMessageStatus': 'sent',
     });
+  }
+
+  /// Mark unread incoming messages as 'seen' (WhatsApp double blue tick equivalent)
+  Future<void> markMessagesAsSeen({
+    required String roomId,
+    required String currentUserId,
+  }) async {
+    try {
+      final snap = await _messagesRef
+          .child(roomId)
+          .orderByChild('timestamp')
+          .limitToLast(30)
+          .get();
+
+      if (!snap.exists || snap.value == null || snap.value is! Map) return;
+
+      final data = snap.value as Map;
+      final Map<String, Object?> updates = {};
+      final seenTime = DateTime.now().millisecondsSinceEpoch;
+
+      data.forEach((key, val) {
+        if (val is Map) {
+          final senderId = (val['senderId'] ?? '').toString();
+          final status = (val['status'] ?? 'sent').toString();
+
+          // If message is from the other person and not yet seen
+          if (senderId.isNotEmpty && senderId != currentUserId && status != 'seen') {
+            updates['$key/status'] = 'seen';
+            updates['$key/seenAt'] = seenTime;
+          }
+        }
+      });
+
+      if (updates.isNotEmpty) {
+        await _messagesRef.child(roomId).update(updates);
+      }
+    } catch (e) {
+      debugPrint('Error marking messages as seen: $e');
+    }
+  }
+
+  /// Mark incoming messages as 'delivered'
+  Future<void> markMessagesAsDelivered({
+    required String roomId,
+    required String currentUserId,
+  }) async {
+    try {
+      final snap = await _messagesRef
+          .child(roomId)
+          .orderByChild('timestamp')
+          .limitToLast(20)
+          .get();
+
+      if (!snap.exists || snap.value == null || snap.value is! Map) return;
+
+      final data = snap.value as Map;
+      final Map<String, Object?> updates = {};
+
+      data.forEach((key, val) {
+        if (val is Map) {
+          final senderId = (val['senderId'] ?? '').toString();
+          final status = (val['status'] ?? 'sent').toString();
+
+          if (senderId.isNotEmpty && senderId != currentUserId && status == 'sent') {
+            updates['$key/status'] = 'delivered';
+          }
+        }
+      });
+
+      if (updates.isNotEmpty) {
+        await _messagesRef.child(roomId).update(updates);
+      }
+    } catch (e) {
+      debugPrint('Error marking messages as delivered: $e');
+    }
   }
 }

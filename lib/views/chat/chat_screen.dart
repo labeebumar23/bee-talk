@@ -46,6 +46,19 @@ class _ChatScreenContent extends StatefulWidget {
 class _ChatScreenContentState extends State<_ChatScreenContent> {
   final ScrollController _scrollController = ScrollController();
 
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (_scrollController.hasClients &&
+        _scrollController.position.pixels <= 50) {
+      context.read<ChatProvider>().loadMoreMessages();
+    }
+  }
+
   void _scrollToBottom() {
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
@@ -58,6 +71,7 @@ class _ChatScreenContentState extends State<_ChatScreenContent> {
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
   }
@@ -208,9 +222,26 @@ class _ChatScreenContentState extends State<_ChatScreenContent> {
                     : ListView.builder(
                         controller: _scrollController,
                         padding: const EdgeInsets.symmetric(vertical: 12),
-                        itemCount: chat.messages.length,
+                        itemCount: chat.messages.length + (chat.isLoadingMore ? 1 : 0),
                         itemBuilder: (context, index) {
-                          final msg = chat.messages[index];
+                          if (chat.isLoadingMore && index == 0) {
+                            return const Center(
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(vertical: 8),
+                                child: SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppColors.beeYellow,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+
+                          final actualIndex = chat.isLoadingMore ? index - 1 : index;
+                          final msg = chat.messages[actualIndex];
                           final isMe = msg.senderId == chat.currentUser.uid;
 
                           return MessageBubble(

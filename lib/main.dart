@@ -8,6 +8,243 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+// Global Navigator Key for Notification Deep Linking & In-App Alerts
+final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
+
+// ==========================================
+// 🔔 GLOBAL NOTIFICATION SERVICE
+// ==========================================
+class NotificationService {
+  static final NotificationService instance = NotificationService._internal();
+  factory NotificationService() => instance;
+  NotificationService._internal();
+
+  final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
+  bool _isInitialized = false;
+  String? activeRoomId;
+  AppUser? currentUser;
+
+  final Map<String, StreamSubscription<DatabaseEvent>> _roomSubs = {};
+  StreamSubscription<DatabaseEvent>? _chatsSub;
+
+  static const String channelId = 'bee_talk_messages';
+  static const String channelName = 'Bee Talk Messages';
+  static const String channelDescription = 'Notifications for new chat messages in Bee Talk';
+
+  Future<void> initialize() async {
+    if (_isInitialized) return;
+
+    const AndroidInitializationSettings androidSettings =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+
+    const DarwinInitializationSettings iosSettings = DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+    );
+
+    const InitializationSettings initSettings = InitializationSettings(
+      android: androidSettings,
+      iOS: iosSettings,
+    );
+
+    await _notificationsPlugin.initialize(
+      initSettings,
+      onDidReceiveNotificationResponse: (NotificationResponse response) {
+        if (response.payload != null && response.payload!.isNotEmpty) {
+          try {
+            final data = jsonDecode(response.payload!) as Map<String, dynamic>;
+            _handleNotificationClick(data);
+          } catch (e) {
+            debugPrint('Error handling notification click: $e');
+          }
+        }
+      },
+    );
+
+    final androidPlugin = _notificationsPlugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    if (androidPlugin != null) {
+      await androidPlugin.createNotificationChannel(
+        const AndroidNotificationChannel(
+          channelId,
+          channelName,
+          description: channelDescription,
+          importance: Importance.max,
+          enableVibration: true,
+          playSound: true,
+          showBadge: true,
+        ),
+      );
+    }
+
+    _isInitialized = true;
+    debugPrint('🐝 NotificationService initialized successfully');
+  }
+
+  Future<void> requestPermissions() async {
+    try {
+      await Permission.notification.request();
+      final androidPlugin = _notificationsPlugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      if (androidPlugin != null) {
+        await androidPlugin.requestNotificationsPermission();
+      }
+    } catch (e) {
+      debugPrint('Notification permission error: $e');
+    }
+  }
+
+  void _handleNotificationClick(Map<String, dynamic> data) {
+    if (currentUser == null) return;
+    final roomId = data['roomId']?.toString() ?? '';
+    final otherUid = data['senderId']?.toString() ?? '';
+    final otherName = data['senderName']?.toString() ?? 'Bee User';
+    final otherAvatar = data['senderAvatar']?.toString() ?? '🐝';
+    final otherLang = data['senderLang']?.toString() ?? 'English';
+
+    if (roomId.isNotEmpty && activeRoomId != roomId) {
+      appNavigatorKey.currentState?.push(
+        MaterialPageRoute(
+          builder: (context) => ChatScreen(
+            roomId: roomId,
+            currentUser: currentUser!,
+            otherUid: otherUid,
+            otherName: otherName,
+            otherAvatar: otherAvatar,
+            otherLang: otherLang,
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> showLocalNotification({
+    required String roomId,
+    required String senderId,
+    required String senderName,
+    required String senderAvatar,
+    required String messageText,
+    required String senderLang,
+  }) async {
+    if (activeRoomId == roomId) return;
+
+    final int notificationId = roomId.hashCode.abs() % 100000;
+
+    final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      channelId,
+      channelName,
+      channelDescription: channelDescription,
+      importance: Importance.max,
+      priority: Priority.high,
+      showWhen: true,
+      category: AndroidNotificationCategory.message,
+      styleInformation: BigTextStyleInformation(
+        messageText,
+        htmlFormatBigText: false,
+        contentTitle: '$senderAvatar $senderName',
+        htmlFormatContentTitle: false,
+        summaryText: 'Bee Talk',
+      ),
+    );
+
+    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    final NotificationDetails details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    final payload = jsonEncode({
+      'roomId': roomId,
+      'senderId': senderId,
+      'senderName': senderName,
+      'senderAvatar': senderAvatar,
+      'senderLang': senderLang,
+    });
+
+    try {
+      await _notificationsPlugin.show(
+        notificationId,
+        '$senderAvatar $senderName',
+        messageText,
+        details,
+        payload: payload,
+      );
+    } catch (e) {
+      debugPrint('Error showing local notification: $e');
+    }
+  }
+
+  void startListening(AppUser user, {Function(String roomId, String name, String avatar, String text)? onInAppBanner}) {
+    currentUser = user;
+    final db = FirebaseDatabase.instance.ref();
+    final userChatsRef = db.child('user_chats').child(user.uid);
+    final appStartTime = DateTime.now().millisecondsSinceEpoch - 500;
+
+    _chatsSub?.cancel();
+    _chatsSub = userChatsRef.onValue.listen((event) {
+      if (!event.snapshot.exists || event.snapshot.value == null) return;
+      final data = Map<dynamic, dynamic>.from(event.snapshot.value as Map);
+
+      for (final key in data.keys) {
+        final roomId = key.toString();
+        if (_roomSubs.containsKey(roomId)) continue;
+
+        final query = db.child('messages').child(roomId).orderByChild('timestamp').limitToLast(1);
+        final sub = query.onChildAdded.listen((msgEvent) {
+          if (!msgEvent.snapshot.exists || msgEvent.snapshot.value == null) return;
+          final msg = Map<dynamic, dynamic>.from(msgEvent.snapshot.value as Map);
+
+          final senderId = (msg['senderId'] ?? '').toString();
+          final timestamp = (msg['timestamp'] is int) ? msg['timestamp'] as int : DateTime.now().millisecondsSinceEpoch;
+
+          if (senderId.isNotEmpty && senderId != user.uid && timestamp > appStartTime) {
+            final senderName = (msg['senderName'] ?? 'Bee User').toString();
+            final senderAvatar = (msg['senderAvatar'] ?? '🐝').toString();
+            final text = (msg['text'] ?? msg['originalText'] ?? '').toString();
+            final senderLang = (msg['senderLang'] ?? 'English').toString();
+
+            // Automatically mark delivered
+            final msgKey = msgEvent.snapshot.key;
+            if (msgKey != null && (msg['status'] == null || msg['status'] == 'sent')) {
+              db.child('messages').child(roomId).child(msgKey).update({'status': 'delivered'});
+            }
+
+            if (activeRoomId != roomId) {
+              showLocalNotification(
+                roomId: roomId,
+                senderId: senderId,
+                senderName: senderName,
+                senderAvatar: senderAvatar,
+                messageText: text,
+                senderLang: senderLang,
+              );
+              onInAppBanner?.call(roomId, senderName, senderAvatar, text);
+            }
+          }
+        });
+
+        _roomSubs[roomId] = sub;
+      }
+    });
+  }
+
+  void stopListening() {
+    _chatsSub?.cancel();
+    for (final sub in _roomSubs.values) {
+      sub.cancel();
+    }
+    _roomSubs.clear();
+  }
+}
 
 // ==========================================
 // 🚀 APP ENTRY & SESSION INITIALIZATION
@@ -27,6 +264,9 @@ void main() async {
       measurementId: "G-Z6WKLFNY0G",
     ),
   );
+
+  // Initialize notification engine
+  await NotificationService.instance.initialize();
 
   final prefs = await SharedPreferences.getInstance();
   final isOnboarded = prefs.getBool('pref_is_onboarded') ?? false;
@@ -68,6 +308,7 @@ class BeeColors {
   static const Color whiteOff = Color(0xFFF8F9FA);
   static const Color onlineGreen = Color(0xFF10B981);
   static const Color errorRed = Color(0xFFEF4444);
+  static const Color seenBlue = Color(0xFF0284C7); // WhatsApp Blue / Electric Sky
 }
 
 // ==========================================
@@ -130,7 +371,7 @@ class BeeLanguages {
 }
 
 // ==========================================
-// 🌐 REAL-TIME DYNAMIC TRANSLATION ENGINE
+// 🌐 MEMOIZED REAL-TIME TRANSLATION ENGINE
 // ==========================================
 class RealtimeTranslator {
   static final Map<String, String> _cache = {};
@@ -190,7 +431,7 @@ class RealtimeTranslator {
         }
       }
     } catch (e) {
-      debugPrint('Primary translation error: $e. Trying fallback...');
+      debugPrint('Primary translation error: $e');
     }
 
     // 2. Fallback Engine: MyMemory API
@@ -226,6 +467,7 @@ class BeeTalkApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: appNavigatorKey,
       title: 'Bee Talk',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -283,6 +525,8 @@ class ChatRoomItem {
   final String otherLang;
   final String lastMessage;
   final int lastTimestamp;
+  final String lastMessageSenderId;
+  final String lastMessageStatus;
 
   ChatRoomItem({
     required this.roomId,
@@ -292,7 +536,33 @@ class ChatRoomItem {
     required this.otherLang,
     required this.lastMessage,
     required this.lastTimestamp,
+    this.lastMessageSenderId = '',
+    this.lastMessageStatus = 'sent',
   });
+
+  Map<String, dynamic> toMap() => {
+    'roomId': roomId,
+    'otherUid': otherUid,
+    'otherName': otherName,
+    'otherAvatar': otherAvatar,
+    'otherLang': otherLang,
+    'lastMessage': lastMessage,
+    'lastTimestamp': lastTimestamp,
+    'lastMessageSenderId': lastMessageSenderId,
+    'lastMessageStatus': lastMessageStatus,
+  };
+
+  factory ChatRoomItem.fromMap(Map<String, dynamic> map) => ChatRoomItem(
+    roomId: (map['roomId'] ?? '').toString(),
+    otherUid: (map['otherUid'] ?? '').toString(),
+    otherName: (map['otherName'] ?? 'Bee User').toString(),
+    otherAvatar: (map['otherAvatar'] ?? '🐝').toString(),
+    otherLang: (map['otherLang'] ?? 'English').toString(),
+    lastMessage: (map['lastMessage'] ?? '').toString(),
+    lastTimestamp: (map['lastTimestamp'] is int) ? map['lastTimestamp'] : 0,
+    lastMessageSenderId: (map['lastMessageSenderId'] ?? '').toString(),
+    lastMessageStatus: (map['lastMessageStatus'] ?? 'sent').toString(),
+  );
 }
 
 class ChatMessage {
@@ -306,6 +576,8 @@ class ChatMessage {
   final String time;
   final int timestamp;
   final bool isMe;
+  String status; // 'sent', 'delivered', 'seen'
+  int? seenAt;
   bool showOriginal;
 
   ChatMessage({
@@ -319,6 +591,8 @@ class ChatMessage {
     required this.time,
     required this.timestamp,
     required this.isMe,
+    this.status = 'sent',
+    this.seenAt,
     this.showOriginal = false,
   });
 }
@@ -390,7 +664,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         inviteCode: inviteCode,
       );
 
-      // Save user profile locally in SharedPreferences for session persistence
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('pref_user_uid', uid);
       await prefs.setString('pref_display_name', name);
@@ -400,11 +673,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       await prefs.setBool('pref_is_onboarded', true);
 
       final dbRef = FirebaseDatabase.instance.ref();
-      
-      // Save User Profile in Firebase
       await dbRef.child('users').child(uid).set(currentUser.toMap());
 
-      // Register Invite Code
       await dbRef.child('invites').child(inviteCode).set({
         'code': inviteCode,
         'creatorUid': uid,
@@ -414,7 +684,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         'createdAt': ServerValue.timestamp,
       });
 
-      // Setup Realtime Presence
+      // Presence
       final presenceRef = dbRef.child('presence').child(uid);
       dbRef.child('.info/connected').onValue.listen((event) {
         if (event.snapshot.value == true) {
@@ -429,9 +699,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         }
       });
 
+      // Request notification permission
+      await NotificationService.instance.requestPermissions();
+
       if (!mounted) return;
 
-      // Navigate to Inbox Screen
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -668,7 +940,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   children: [
                     Icon(Icons.lock_outline, size: 14, color: BeeColors.charcoalMuted),
                     SizedBox(width: 6),
-                    Text('Private 1-on-1 Chats • Real-Time Dynamic Translation', style: TextStyle(fontSize: 12, color: BeeColors.charcoalMuted)),
+                    Text('Private 1-on-1 • Real-Time Dynamic Translation', style: TextStyle(fontSize: 12, color: BeeColors.charcoalMuted)),
                   ],
                 ),
               ],
@@ -681,7 +953,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 }
 
 // ==========================================
-// 📥 SCREEN 2: INBOX & MULTIPLE CHATS (HOME)
+// 📥 SCREEN 2: INBOX & OPTIMIZED CHAT LIST (HOME)
 // ==========================================
 class InboxScreen extends StatefulWidget {
   final AppUser currentUser;
@@ -702,7 +974,72 @@ class _InboxScreenState extends State<InboxScreen> {
   @override
   void initState() {
     super.initState();
+    _loadCachedRooms();
     _listenToUserChats();
+    NotificationService.instance.requestPermissions();
+    NotificationService.instance.startListening(
+      widget.currentUser,
+      onInAppBanner: (roomId, name, avatar, text) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: BeeColors.charcoalSurface,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: const BorderSide(color: BeeColors.yellow, width: 1.5),
+            ),
+            content: Row(
+              children: [
+                Text(avatar, style: const TextStyle(fontSize: 22)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(name, style: const TextStyle(fontWeight: FontWeight.bold, color: BeeColors.white)),
+                      Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: BeeColors.charcoalMuted, fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _loadCachedRooms() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cachedStr = prefs.getString('cached_rooms_${widget.currentUser.uid}');
+      if (cachedStr != null && cachedStr.isNotEmpty) {
+        final List<dynamic> list = jsonDecode(cachedStr);
+        final rooms = list.map((e) => ChatRoomItem.fromMap(Map<String, dynamic>.from(e as Map))).toList();
+        if (mounted && rooms.isNotEmpty) {
+          setState(() {
+            _chatRooms.clear();
+            _chatRooms.addAll(rooms);
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading cached rooms: $e');
+    }
+  }
+
+  Future<void> _saveCachedRooms(List<ChatRoomItem> rooms) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = rooms.map((r) => r.toMap()).toList();
+      await prefs.setString('cached_rooms_${widget.currentUser.uid}', jsonEncode(list));
+    } catch (e) {
+      debugPrint('Error saving cached rooms: $e');
+    }
   }
 
   void _listenToUserChats() {
@@ -716,20 +1053,28 @@ class _InboxScreenState extends State<InboxScreen> {
           _chatRooms.clear();
           _isLoading = false;
         });
+        _saveCachedRooms([]);
         return;
       }
 
       final data = Map<dynamic, dynamic>.from(event.snapshot.value as Map);
+      final roomIds = data.keys.map((k) => k.toString()).toList();
+
+      // Parallel async fetching for instant loading
+      final roomSnaps = await Future.wait(
+        roomIds.map((roomId) => dbRef.child('chat_rooms').child(roomId).get()),
+      );
+
       final List<ChatRoomItem> rooms = [];
 
-      for (final entry in data.entries) {
-        final roomId = entry.key.toString();
-        final roomSnap = await dbRef.child('chat_rooms').child(roomId).get();
+      for (int i = 0; i < roomSnaps.length; i++) {
+        final roomSnap = roomSnaps[i];
+        final roomId = roomIds[i];
 
         if (roomSnap.exists && roomSnap.value is Map) {
           final roomData = Map<dynamic, dynamic>.from(roomSnap.value as Map);
           final participants = roomData['participants'] as Map? ?? {};
-          
+
           String otherUid = '';
           String otherName = 'Bee User';
           String otherAvatar = '🐝';
@@ -746,6 +1091,8 @@ class _InboxScreenState extends State<InboxScreen> {
 
           final lastMessage = roomData['lastMessageText']?.toString() ?? 'Chat connected 🐝';
           final lastTimestamp = (roomData['lastMessageTimestamp'] is int) ? roomData['lastMessageTimestamp'] as int : 0;
+          final lastSenderId = (roomData['lastMessageSenderId'] ?? '').toString();
+          final lastStatus = (roomData['lastMessageStatus'] ?? 'sent').toString();
 
           rooms.add(ChatRoomItem(
             roomId: roomId,
@@ -755,6 +1102,8 @@ class _InboxScreenState extends State<InboxScreen> {
             otherLang: otherLang,
             lastMessage: lastMessage,
             lastTimestamp: lastTimestamp,
+            lastMessageSenderId: lastSenderId,
+            lastMessageStatus: lastStatus,
           ));
         }
       }
@@ -767,6 +1116,7 @@ class _InboxScreenState extends State<InboxScreen> {
           _chatRooms.addAll(rooms);
           _isLoading = false;
         });
+        _saveCachedRooms(rooms);
       }
     });
   }
@@ -889,6 +1239,7 @@ class _InboxScreenState extends State<InboxScreen> {
                           },
                           'lastMessageText': 'Chat established 🐝',
                           'lastMessageSenderId': widget.currentUser.uid,
+                          'lastMessageStatus': 'sent',
                           'lastMessageTimestamp': ServerValue.timestamp,
                           'createdAt': ServerValue.timestamp,
                         };
@@ -977,6 +1328,29 @@ class _InboxScreenState extends State<InboxScreen> {
 
     if (updated == true && mounted) {
       setState(() {});
+    }
+  }
+
+  Widget _buildStatusMiniIcon(ChatRoomItem room) {
+    if (room.lastMessageSenderId != widget.currentUser.uid) {
+      return const SizedBox.shrink();
+    }
+
+    if (room.lastMessageStatus == 'seen') {
+      return const Padding(
+        padding: EdgeInsets.only(right: 4),
+        child: Icon(Icons.done_all_rounded, size: 14, color: BeeColors.seenBlue),
+      );
+    } else if (room.lastMessageStatus == 'delivered') {
+      return Padding(
+        padding: const EdgeInsets.only(right: 4),
+        child: Icon(Icons.done_all_rounded, size: 14, color: BeeColors.charcoalMuted.withOpacity(0.8)),
+      );
+    } else {
+      return Padding(
+        padding: const EdgeInsets.only(right: 4),
+        child: Icon(Icons.done_rounded, size: 14, color: BeeColors.charcoalMuted.withOpacity(0.8)),
+      );
     }
   }
 
@@ -1071,7 +1445,7 @@ class _InboxScreenState extends State<InboxScreen> {
             ),
           ),
 
-          // Privacy Banner
+          // Privacy & Features Banner
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -1086,7 +1460,7 @@ class _InboxScreenState extends State<InboxScreen> {
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    '🔒 Dynamic Multi-Language Translation • 30-Day Auto Retention',
+                    '🔒 Real-Time Read Receipts • Push Alerts • 30-Day Auto Retention',
                     style: TextStyle(fontSize: 11, color: BeeColors.charcoalMuted),
                   ),
                 ),
@@ -1171,11 +1545,18 @@ class _InboxScreenState extends State<InboxScreen> {
                             ),
                             subtitle: Padding(
                               padding: const EdgeInsets.only(top: 4),
-                              child: Text(
-                                room.lastMessage,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 13, color: BeeColors.charcoalMuted),
+                              child: Row(
+                                children: [
+                                  _buildStatusMiniIcon(room),
+                                  Expanded(
+                                    child: Text(
+                                      room.lastMessage,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontSize: 13, color: BeeColors.charcoalMuted),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                             onTap: () {
@@ -1249,18 +1630,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _isSaving = true);
 
     try {
-      // 1. Update in SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('pref_display_name', newName);
       await prefs.setString('pref_native_language', _selectedLanguage);
       await prefs.setString('pref_avatar', _avatar);
 
-      // 2. Update In-Memory User
       widget.currentUser.displayName = newName;
       widget.currentUser.nativeLanguage = _selectedLanguage;
       widget.currentUser.avatar = _avatar;
 
-      // 3. Update Firebase Database
       final dbRef = FirebaseDatabase.instance.ref();
       await dbRef.child('users').child(widget.currentUser.uid).update({
         'displayName': newName,
@@ -1320,6 +1698,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (confirm == true) {
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
+
+      NotificationService.instance.stopListening();
 
       if (!mounted) return;
       Navigator.pushAndRemoveUntil(
@@ -1461,6 +1841,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 20),
 
+            // Notification Permissions test
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: BeeColors.charcoalSurface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: BeeColors.charcoalBorder),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.notifications_active_outlined, color: BeeColors.yellow, size: 22),
+                      SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Push Notifications', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: BeeColors.white)),
+                          Text('Receive alerts for new messages', style: TextStyle(fontSize: 11, color: BeeColors.charcoalMuted)),
+                        ],
+                      ),
+                    ],
+                  ),
+                  ElevatedButton(
+                    onPressed: () async {
+                      await NotificationService.instance.requestPermissions();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Notifications active! 🔔'), backgroundColor: BeeColors.yellow),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(backgroundColor: BeeColors.charcoalCard, foregroundColor: BeeColors.yellow),
+                    child: const Text('Allow'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
             // Invite Code Info
             Container(
               padding: const EdgeInsets.all(18),
@@ -1531,7 +1952,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 }
 
 // ==========================================
-// 💬 SCREEN 3: 1-ON-1 CHAT ROOM
+// 💬 SCREEN 3: 1-ON-1 CHAT ROOM (PAGINATED & SEEN RECEIPT)
 // ==========================================
 class ChatScreen extends StatefulWidget {
   final String roomId;
@@ -1563,21 +1984,43 @@ class _ChatScreenState extends State<ChatScreen> {
   late DatabaseReference _messagesRef;
   StreamSubscription<DatabaseEvent>? _messagesSubscription;
 
+  bool _isLoadingMore = false;
+  bool _hasMoreHistorical = true;
+  static const int pageSize = 30;
   static const int monthlyRetentionMs = 30 * 24 * 60 * 60 * 1000;
 
   @override
   void initState() {
     super.initState();
+    NotificationService.instance.activeRoomId = widget.roomId;
     _initChat();
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (_scrollController.hasClients &&
+        _scrollController.position.pixels <= 60 &&
+        !_isLoadingMore &&
+        _hasMoreHistorical &&
+        _messages.isNotEmpty) {
+      _loadEarlierMessages();
+    }
   }
 
   void _initChat() {
     final db = FirebaseDatabase.instance;
     _messagesRef = db.ref('messages').child(widget.roomId);
 
+    _markMessagesAsSeen();
+
     final cutoffTimestamp = DateTime.now().millisecondsSinceEpoch - monthlyRetentionMs;
 
-    _messagesSubscription = _messagesRef.orderByChild('timestamp').onValue.listen((event) async {
+    // Optimized initial load with limitToLast
+    _messagesSubscription = _messagesRef
+        .orderByChild('timestamp')
+        .limitToLast(pageSize)
+        .onValue
+        .listen((event) async {
       if (!mounted) return;
       if (!event.snapshot.exists || event.snapshot.value == null) {
         setState(() => _messages.clear());
@@ -1594,12 +2037,14 @@ class _ChatScreenState extends State<ChatScreen> {
 
         if (val is Map) {
           final timestamp = (val['timestamp'] is int) ? val['timestamp'] as int : DateTime.now().millisecondsSinceEpoch;
-          
+
           if (timestamp >= cutoffTimestamp) {
             final senderId = (val['senderId'] ?? '').toString();
             final isMe = senderId == widget.currentUser.uid;
-            final originalText = (val['text'] ?? '').toString();
+            final originalText = (val['text'] ?? val['originalText'] ?? '').toString();
             final senderLang = (val['senderLang'] ?? widget.otherLang).toString();
+            final status = (val['status'] ?? 'sent').toString();
+            final seenAt = (val['seenAt'] is int) ? val['seenAt'] as int : null;
 
             String translated = originalText;
             if (!isMe) {
@@ -1627,6 +2072,8 @@ class _ChatScreenState extends State<ChatScreen> {
               time: formattedTime,
               timestamp: timestamp,
               isMe: isMe,
+              status: status,
+              seenAt: seenAt,
             ));
           } else {
             expiredIds.add(key);
@@ -1634,7 +2081,6 @@ class _ChatScreenState extends State<ChatScreen> {
         }
       }
 
-      // Prune messages older than 30 days
       for (final id in expiredIds) {
         _messagesRef.child(id).remove();
       }
@@ -1642,20 +2088,144 @@ class _ChatScreenState extends State<ChatScreen> {
       activeMessages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
       if (mounted) {
+        // Mark any incoming message as seen immediately
+        _markMessagesAsSeen();
+
         setState(() {
+          // Merge with any existing earlier loaded messages
+          final existingIds = activeMessages.map((m) => m.id).toSet();
+          final historicalKept = _messages.where((m) => !existingIds.contains(m.id)).toList();
           _messages.clear();
+          _messages.addAll(historicalKept);
           _messages.addAll(activeMessages);
+          _messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
         });
         _scrollToBottom();
       }
     });
   }
 
+  Future<void> _loadEarlierMessages() async {
+    if (_isLoadingMore || !_hasMoreHistorical || _messages.isEmpty) return;
+
+    setState(() => _isLoadingMore = true);
+
+    try {
+      final oldestTimestamp = _messages.first.timestamp;
+      final snap = await _messagesRef
+          .orderByChild('timestamp')
+          .endBefore(oldestTimestamp)
+          .limitToLast(25)
+          .get();
+
+      if (!snap.exists || snap.value == null || snap.value is! Map) {
+        if (mounted) setState(() => _hasMoreHistorical = false);
+        return;
+      }
+
+      final data = snap.value as Map;
+      final List<ChatMessage> earlier = [];
+
+      for (final entry in data.entries) {
+        final key = entry.key.toString();
+        final val = entry.value;
+        if (val is Map) {
+          final timestamp = (val['timestamp'] is int) ? val['timestamp'] as int : 0;
+          final senderId = (val['senderId'] ?? '').toString();
+          final isMe = senderId == widget.currentUser.uid;
+          final originalText = (val['text'] ?? val['originalText'] ?? '').toString();
+          final senderLang = (val['senderLang'] ?? widget.otherLang).toString();
+          final status = (val['status'] ?? 'sent').toString();
+          final seenAt = (val['seenAt'] is int) ? val['seenAt'] as int : null;
+
+          String translated = originalText;
+          if (!isMe) {
+            translated = await RealtimeTranslator.translate(
+              text: originalText,
+              sourceLang: senderLang,
+              targetLang: widget.currentUser.nativeLanguage,
+            );
+          }
+
+          final date = DateTime.fromMillisecondsSinceEpoch(timestamp);
+          final hour = date.hour > 12 ? date.hour - 12 : (date.hour == 0 ? 12 : date.hour);
+          final period = date.hour >= 12 ? 'PM' : 'AM';
+          final minute = date.minute.toString().padLeft(2, '0');
+          final formattedTime = "$hour:$minute $period";
+
+          earlier.add(ChatMessage(
+            id: key,
+            senderId: senderId,
+            sender: (val['senderName'] ?? 'Bee User').toString(),
+            senderAvatar: (val['senderAvatar'] ?? '🐝').toString(),
+            originalText: originalText,
+            translatedText: translated,
+            senderLang: senderLang,
+            time: formattedTime,
+            timestamp: timestamp,
+            isMe: isMe,
+            status: status,
+            seenAt: seenAt,
+          ));
+        }
+      }
+
+      if (earlier.isEmpty) {
+        if (mounted) setState(() => _hasMoreHistorical = false);
+      } else {
+        earlier.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+        if (mounted) {
+          setState(() {
+            final existingIds = _messages.map((m) => m.id).toSet();
+            final uniqueEarlier = earlier.where((m) => !existingIds.contains(m.id)).toList();
+            _messages.insertAll(0, uniqueEarlier);
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading earlier messages: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingMore = false);
+    }
+  }
+
+  Future<void> _markMessagesAsSeen() async {
+    try {
+      final snap = await _messagesRef.orderByChild('timestamp').limitToLast(25).get();
+      if (!snap.exists || snap.value == null || snap.value is! Map) return;
+
+      final data = snap.value as Map;
+      final Map<String, Object?> updates = {};
+      final now = DateTime.now().millisecondsSinceEpoch;
+
+      data.forEach((k, v) {
+        if (v is Map) {
+          final senderId = (v['senderId'] ?? '').toString();
+          final status = (v['status'] ?? 'sent').toString();
+          if (senderId.isNotEmpty && senderId != widget.currentUser.uid && status != 'seen') {
+            updates['$k/status'] = 'seen';
+            updates['$k/seenAt'] = now;
+          }
+        }
+      });
+
+      if (updates.isNotEmpty) {
+        await _messagesRef.update(updates);
+        // Also update room's last message status if from other user
+        final dbRef = FirebaseDatabase.instance.ref();
+        await dbRef.child('chat_rooms').child(widget.roomId).update({'lastMessageStatus': 'seen'});
+      }
+    } catch (e) {
+      debugPrint('Error marking seen: $e');
+    }
+  }
+
   @override
   void dispose() {
+    NotificationService.instance.activeRoomId = null;
     _messagesSubscription?.cancel();
-    _textController.dispose();
     _scrollController.dispose();
+    _textController.dispose();
     super.dispose();
   }
 
@@ -1665,9 +2235,36 @@ class _ChatScreenState extends State<ChatScreen> {
 
     _textController.clear();
     final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final newMsgRef = _messagesRef.push();
+    final newId = newMsgRef.key ?? timestamp.toString();
+
+    final date = DateTime.fromMillisecondsSinceEpoch(timestamp);
+    final hour = date.hour > 12 ? date.hour - 12 : (date.hour == 0 ? 12 : date.hour);
+    final period = date.hour >= 12 ? 'PM' : 'AM';
+    final minute = date.minute.toString().padLeft(2, '0');
+    final formattedTime = "$hour:$minute $period";
+
+    // Optimistic UI update for instant feedback
+    final optimisticMsg = ChatMessage(
+      id: newId,
+      senderId: widget.currentUser.uid,
+      sender: widget.currentUser.displayName,
+      senderAvatar: widget.currentUser.avatar,
+      originalText: text,
+      translatedText: text,
+      senderLang: widget.currentUser.nativeLanguage,
+      time: formattedTime,
+      timestamp: timestamp,
+      isMe: true,
+      status: 'sent',
+    );
+
+    setState(() {
+      _messages.add(optimisticMsg);
+    });
+    _scrollToBottom();
 
     try {
-      final newMsgRef = _messagesRef.push();
       await newMsgRef.set({
         'senderId': widget.currentUser.uid,
         'senderName': widget.currentUser.displayName,
@@ -1675,6 +2272,7 @@ class _ChatScreenState extends State<ChatScreen> {
         'senderLang': widget.currentUser.nativeLanguage,
         'text': text,
         'timestamp': timestamp,
+        'status': 'sent',
       });
 
       final dbRef = FirebaseDatabase.instance.ref();
@@ -1682,9 +2280,8 @@ class _ChatScreenState extends State<ChatScreen> {
         'lastMessageText': text,
         'lastMessageSenderId': widget.currentUser.uid,
         'lastMessageTimestamp': timestamp,
+        'lastMessageStatus': 'sent',
       });
-
-      _scrollToBottom();
     } catch (e) {
       debugPrint('Error sending message: $e');
     }
@@ -1700,6 +2297,41 @@ class _ChatScreenState extends State<ChatScreen> {
         );
       }
     });
+  }
+
+  Widget _buildReadReceiptIcon(ChatMessage msg) {
+    if (!msg.isMe) return const SizedBox.shrink();
+
+    switch (msg.status) {
+      case 'seen':
+        return const Tooltip(
+          message: 'Seen',
+          child: Icon(
+            Icons.done_all_rounded,
+            size: 14,
+            color: BeeColors.seenBlue, // WhatsApp Blue Double Ticks
+          ),
+        );
+      case 'delivered':
+        return Tooltip(
+          message: 'Delivered',
+          child: Icon(
+            Icons.done_all_rounded,
+            size: 14,
+            color: BeeColors.charcoal.withOpacity(0.65),
+          ),
+        );
+      case 'sent':
+      default:
+        return Tooltip(
+          message: 'Sent',
+          child: Icon(
+            Icons.done_rounded,
+            size: 14,
+            color: BeeColors.charcoal.withOpacity(0.65),
+          ),
+        );
+    }
   }
 
   void _showTranslationInsight(ChatMessage msg) {
@@ -1828,7 +2460,7 @@ class _ChatScreenState extends State<ChatScreen> {
               children: [
                 Icon(Icons.lock_clock_outlined, size: 13, color: BeeColors.yellow),
                 SizedBox(width: 6),
-                Text('30-Day Auto-Clear Active • Dynamic Instant Translation', style: TextStyle(fontSize: 11, color: BeeColors.yellowAccent)),
+                Text('Instant Translation Active • Read Receipts Enabled', style: TextStyle(fontSize: 11, color: BeeColors.yellowAccent)),
               ],
             ),
           ),
@@ -1851,9 +2483,23 @@ class _ChatScreenState extends State<ChatScreen> {
                 : ListView.builder(
                     controller: _scrollController,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    itemCount: _messages.length,
+                    itemCount: _messages.length + (_isLoadingMore ? 1 : 0),
                     itemBuilder: (ctx, index) {
-                      final msg = _messages[index];
+                      if (_isLoadingMore && index == 0) {
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            child: SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: BeeColors.yellow),
+                            ),
+                          ),
+                        );
+                      }
+
+                      final actualIndex = _isLoadingMore ? index - 1 : index;
+                      final msg = _messages[actualIndex];
                       final displayText = msg.isMe ? msg.originalText : (msg.showOriginal ? msg.originalText : msg.translatedText);
 
                       return Padding(
@@ -1920,7 +2566,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                         Text(msg.time, style: TextStyle(fontSize: 10, color: msg.isMe ? BeeColors.charcoal.withOpacity(0.7) : BeeColors.charcoalMuted)),
                                         if (msg.isMe) ...[
                                           const SizedBox(width: 4),
-                                          Icon(Icons.done_all, size: 13, color: BeeColors.charcoal.withOpacity(0.7)),
+                                          _buildReadReceiptIcon(msg),
                                         ],
                                       ],
                                     ),

@@ -20,6 +20,44 @@ class MessageBubble extends StatelessWidget {
     required this.onToggleOriginal,
   });
 
+  Widget _buildStatusIndicator() {
+    switch (message.status) {
+      case 'seen':
+        return const Tooltip(
+          message: 'Seen',
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.done_all_rounded,
+                size: 14,
+                color: Color(0xFF0284C7), // WhatsApp Blue / Electric Cyan Seen Status
+              ),
+            ],
+          ),
+        );
+      case 'delivered':
+        return Tooltip(
+          message: 'Delivered',
+          child: Icon(
+            Icons.done_all_rounded,
+            size: 14,
+            color: AppColors.charcoalDark.withOpacity(0.55),
+          ),
+        );
+      case 'sent':
+      default:
+        return Tooltip(
+          message: 'Sent',
+          child: Icon(
+            Icons.done_rounded,
+            size: 14,
+            color: AppColors.charcoalDark.withOpacity(0.55),
+          ),
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final timeStr = DateFormat('hh:mm a').format(
@@ -151,8 +189,8 @@ class MessageBubble extends StatelessWidget {
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
                                   color: isShowingTranslation
-                                      ? AppColors.beeYellow
-                                      : AppColors.charcoalMuted,
+                                  ? (isMe ? AppColors.charcoalDark : AppColors.beeYellow)
+                                  : AppColors.charcoalMuted,
                                 ),
                               ),
                               if (message.isTranslating) ...[
@@ -185,7 +223,7 @@ class MessageBubble extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
 
-                      // Timestamp & Status
+                      // Timestamp & Dynamic Read Receipt Status Indicator
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         mainAxisAlignment: MainAxisAlignment.end,
@@ -202,11 +240,7 @@ class MessageBubble extends StatelessWidget {
                           ),
                           if (isMe) ...[
                             const SizedBox(width: 4),
-                            Icon(
-                              Icons.done_all_rounded,
-                              size: 13,
-                              color: AppColors.charcoalDark.withOpacity(0.65),
-                            ),
+                            _buildStatusIndicator(),
                           ],
                         ],
                       ),

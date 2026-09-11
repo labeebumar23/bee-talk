@@ -15,6 +15,8 @@ class ChatProvider extends ChangeNotifier {
 
   List<Message> _messages = [];
   bool _isLoading = true;
+  bool _isLoadingMore = false;
+  bool _hasMoreMessages = true;
   bool _isFriendOnline = false;
   String? _errorMessage;
 
@@ -23,6 +25,8 @@ class ChatProvider extends ChangeNotifier {
 
   List<Message> get messages => _messages;
   bool get isLoading => _isLoading;
+  bool get isLoadingMore => _isLoadingMore;
+  bool get hasMoreMessages => _hasMoreMessages;
   bool get isFriendOnline => _isFriendOnline;
   String? get errorMessage => _errorMessage;
 
@@ -39,6 +43,12 @@ class ChatProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
+    // Mark messages as seen upon entering the chat room
+    _dbService.markMessagesAsSeen(
+      roomId: chatRoom.roomId,
+      currentUserId: currentUser.uid,
+    );
+
     // Listen to friend's presence
     if (friend != null) {
       _presenceSubscription = _dbService
@@ -49,13 +59,19 @@ class ChatProvider extends ChangeNotifier {
       });
     }
 
-    // Listen to real-time messages
+    // Listen to real-time messages with limit 30
     _messageSubscription = _dbService
-        .getMessagesStream(chatRoom.roomId)
+        .getMessagesStream(chatRoom.roomId, limit: 30)
         .listen((incomingMessages) async {
       _messages = incomingMessages;
       _isLoading = false;
       notifyListeners();
+
+      // Automatically mark any new incoming messages as seen
+      _dbService.markMessagesAsSeen(
+        roomId: chatRoom.roomId,
+        currentUserId: currentUser.uid,
+      );
 
       // Trigger automatic background on-device translation for incoming messages
       _translateIncomingMessages();
@@ -66,10 +82,41 @@ class ChatProvider extends ChangeNotifier {
     });
   }
 
+  /// Loads older historical messages on scroll up
+  Future<void> loadMoreMessages() async {
+    if (_isLoadingMore || !_hasMoreMessages || _messages.isEmpty) return;
+
+    _isLoadingMore = true;
+    notifyListeners();
+
+    try {
+      final oldestTimestamp = _messages.first.timestamp;
+      final earlier = await _dbService.loadEarlierMessages(
+        roomId: chatRoom.roomId,
+        endAtTimestamp: oldestTimestamp,
+        limit: 25,
+      );
+
+      if (earlier.isEmpty) {
+        _hasMoreMessages = false;
+      } else {
+        // Prepend earlier messages without duplicates
+        final existingIds = _messages.map((m) => m.id).toSet();
+        final newEarlier = earlier.where((m) => !existingIds.contains(m.id)).toList();
+        _messages.insertAll(0, newEarlier);
+        _translateIncomingMessages();
+      }
+    } catch (e) {
+      debugPrint('Error loading more messages: $e');
+    } finally {
+      _isLoadingMore = false;
+      notifyListeners();
+    }
+  }
+
   /// Automatically translates messages sent by other participants into current user's native language
   Future<void> _translateIncomingMessages() async {
     for (final msg in _messages) {
-      // If message is from another user and in a different language
       if (msg.senderId != currentUser.uid &&
           msg.senderLanguage.toLowerCase() != currentUser.nativeLanguage.toLowerCase()) {
         

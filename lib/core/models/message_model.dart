@@ -6,6 +6,8 @@ class Message {
   final String originalText;
   final String senderLanguage; // e.g. 'ur', 'tr', 'en'
   final int timestamp;
+  final String status; // 'sent', 'delivered', 'seen'
+  final int? seenAt;
   
   // Local/On-device state fields (not stored in Realtime DB)
   String? translatedText;
@@ -21,6 +23,8 @@ class Message {
     required this.originalText,
     required this.senderLanguage,
     required this.timestamp,
+    this.status = 'sent',
+    this.seenAt,
     this.translatedText,
     this.isTranslating = false,
     this.translationFailed = false,
@@ -34,20 +38,29 @@ class Message {
       'senderId': senderId,
       'senderName': senderName,
       'originalText': originalText,
+      'text': originalText,
       'senderLanguage': senderLanguage,
+      'senderLang': senderLanguage,
       'timestamp': timestamp,
+      'status': status,
+      if (seenAt != null) 'seenAt': seenAt,
     };
   }
 
   factory Message.fromMap(Map<dynamic, dynamic> map, {String? id, String? roomId}) {
+    final textVal = (map['text'] ?? map['originalText'] ?? '').toString();
+    final langVal = (map['senderLang'] ?? map['senderLanguage'] ?? 'en').toString();
+    
     return Message(
       id: (map['id'] ?? id ?? '').toString(),
       roomId: (map['roomId'] ?? roomId ?? '').toString(),
       senderId: (map['senderId'] ?? '').toString(),
       senderName: (map['senderName'] ?? '').toString(),
-      originalText: (map['originalText'] ?? '').toString(),
-      senderLanguage: (map['senderLanguage'] ?? 'en').toString(),
-      timestamp: (map['timestamp'] is int) ? map['timestamp'] : DateTime.now().millisecondsSinceEpoch,
+      originalText: textVal,
+      senderLanguage: langVal,
+      timestamp: (map['timestamp'] is int) ? map['timestamp'] as int : DateTime.now().millisecondsSinceEpoch,
+      status: (map['status'] ?? 'sent').toString(),
+      seenAt: (map['seenAt'] is int) ? map['seenAt'] as int : null,
     );
   }
 
@@ -59,6 +72,8 @@ class Message {
     String? originalText,
     String? senderLanguage,
     int? timestamp,
+    String? status,
+    int? seenAt,
     String? translatedText,
     bool? isTranslating,
     bool? translationFailed,
@@ -72,6 +87,8 @@ class Message {
       originalText: originalText ?? this.originalText,
       senderLanguage: senderLanguage ?? this.senderLanguage,
       timestamp: timestamp ?? this.timestamp,
+      status: status ?? this.status,
+      seenAt: seenAt ?? this.seenAt,
       translatedText: translatedText ?? this.translatedText,
       isTranslating: isTranslating ?? this.isTranslating,
       translationFailed: translationFailed ?? this.translationFailed,

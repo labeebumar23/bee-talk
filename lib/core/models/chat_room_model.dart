@@ -38,6 +38,7 @@ class ChatRoom {
   final String lastMessageSenderId;
   final String lastMessageSenderLang;
   final int lastMessageTimestamp;
+  final String lastMessageStatus;
   final int createdAt;
   final int unreadCount;
 
@@ -49,6 +50,7 @@ class ChatRoom {
     required this.lastMessageSenderId,
     required this.lastMessageSenderLang,
     required this.lastMessageTimestamp,
+    this.lastMessageStatus = 'sent',
     required this.createdAt,
     this.unreadCount = 0,
   });
@@ -71,6 +73,7 @@ class ChatRoom {
       'lastMessageSenderId': lastMessageSenderId,
       'lastMessageSenderLang': lastMessageSenderLang,
       'lastMessageTimestamp': lastMessageTimestamp,
+      'lastMessageStatus': lastMessageStatus,
       'createdAt': createdAt,
     };
   }
@@ -102,6 +105,7 @@ class ChatRoom {
       lastMessageSenderId: (map['lastMessageSenderId'] ?? '').toString(),
       lastMessageSenderLang: (map['lastMessageSenderLang'] ?? 'en').toString(),
       lastMessageTimestamp: (map['lastMessageTimestamp'] is int) ? map['lastMessageTimestamp'] : 0,
+      lastMessageStatus: (map['lastMessageStatus'] ?? 'sent').toString(),
       createdAt: (map['createdAt'] is int) ? map['createdAt'] : 0,
       unreadCount: (map['unreadCount'] is int) ? map['unreadCount'] : 0,
     );
