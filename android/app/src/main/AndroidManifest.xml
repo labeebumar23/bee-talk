@@ -10,7 +10,8 @@
     <application
         android:label="Bee Talk"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round">
 
         <!-- Google ML Kit on-device translation auto-download model metadata -->
         <meta-data
